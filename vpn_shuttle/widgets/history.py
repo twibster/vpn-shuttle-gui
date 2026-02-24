@@ -75,7 +75,14 @@ class HistoryDialog(Adw.Window):
             else:
                 dur_str = f"{seconds}s"
 
-            subtitle = f"{host_name} ({host_ip}) - {time_str} - {dur_str}"
+            rx = entry.get("rx_bytes", 0)
+            tx = entry.get("tx_bytes", 0)
+            if rx or tx:
+                transfer_str = f" - \u2193{self._fmt(rx)} \u2191{self._fmt(tx)}"
+            else:
+                transfer_str = ""
+
+            subtitle = f"{host_name} ({host_ip}) - {time_str} - {dur_str}{transfer_str}"
             if status == "failed":
                 subtitle += " [FAILED]"
             row.set_subtitle(subtitle)
@@ -89,6 +96,16 @@ class HistoryDialog(Adw.Window):
             row.add_prefix(icon)
 
             self._group.add(row)
+
+    @staticmethod
+    def _fmt(b):
+        if b < 1024:
+            return f"{b} B"
+        elif b < 1024 * 1024:
+            return f"{b / 1024:.1f} KB"
+        elif b < 1024 * 1024 * 1024:
+            return f"{b / (1024 * 1024):.1f} MB"
+        return f"{b / (1024 * 1024 * 1024):.2f} GB"
 
     def _on_clear(self, button):
         self._config.clear_history()

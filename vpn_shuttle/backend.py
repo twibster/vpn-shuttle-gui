@@ -344,6 +344,10 @@ class VPNBackend:
         ended_at = datetime.now().isoformat()
         duration = int(time.time() - (self._connect_time or time.time()))
 
+        transfer = self.get_wg_transfer(config_name)
+        rx_bytes = transfer[0] if transfer else 0
+        tx_bytes = transfer[1] if transfer else 0
+
         with self._lock:
             self._connected = False
             self._active_config = None
@@ -357,7 +361,8 @@ class VPNBackend:
 
         self.config.add_history_entry(
             config_name, host_name, host_ip, started_at,
-            ended_at, duration, subnets, "completed"
+            ended_at, duration, subnets, "completed",
+            rx_bytes=rx_bytes, tx_bytes=tx_bytes,
         )
 
     def disconnect(self):

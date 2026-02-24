@@ -153,7 +153,7 @@ class AppConfig:
                 self._data["hosts"] = hosts
                 self.save()
 
-    def add_history_entry(self, config_name, host_name, host_ip, started_at, ended_at, duration_seconds, subnets, status):
+    def add_history_entry(self, config_name, host_name, host_ip, started_at, ended_at, duration_seconds, subnets, status, rx_bytes=0, tx_bytes=0):
         entry = {
             "config_name": config_name,
             "host_name": host_name,
@@ -163,6 +163,8 @@ class AppConfig:
             "duration_seconds": duration_seconds,
             "subnets": subnets,
             "status": status,
+            "rx_bytes": rx_bytes,
+            "tx_bytes": tx_bytes,
         }
         history = self._data.get("connection_history", [])
         history.insert(0, entry)
