@@ -85,8 +85,7 @@ class MainWindow(Adw.ApplicationWindow):
         if self._config.get("routing_mode") == "specific":
             self._routing_editor._specific_btn.set_active(True)
 
-        if self._config.get("auto_connect"):
-            GLib.idle_add(self._try_auto_connect)
+        self._pending_auto_connect = bool(self._config.get("auto_connect"))
 
     def _build_ui(self):
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -152,12 +151,10 @@ class MainWindow(Adw.ApplicationWindow):
         self.set_content(main_box)
 
     def _try_auto_connect(self):
-        last_config = self._config.get("last_config")
-        if last_config and self._config.jump_host and not self._backend.is_connected:
+        if self._config.jump_host and not self._backend.is_connected:
             item = self._config_dropdown.get_selected_item()
             if item and item.get_string():
                 self._on_connect_clicked(self._connect_btn)
-        return False
 
     def _refresh_hosts(self):
         hosts = self._config.get_hosts()
@@ -216,6 +213,10 @@ class MainWindow(Adw.ApplicationWindow):
             routes = self._config.get_routes_for_config(last_config)
             if routes:
                 self._routing_editor.set_subnets(routes)
+
+        if self._pending_auto_connect:
+            self._pending_auto_connect = False
+            self._try_auto_connect()
 
     def _get_selected_config(self) -> str:
         item = self._config_dropdown.get_selected_item()
