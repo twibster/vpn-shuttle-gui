@@ -1,0 +1,27 @@
+vpn_shuttle/app.py
+  e1e646934f6bf213 37,153-167
+README.md
+  e1e646934f6bf213 1-154
+vpn_shuttle/widgets/status.py
+  e1e646934f6bf213 30,91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.5",
+  "base_commit_sha": "b5a9efd04df5c39b4b3158e73bdb0afb239c6b37",
+  "prompts": {
+    "e1e646934f6bf213": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6ba3ae24-36ab-4f4d-8ba1-b361769f1cbf",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Omar Omran <omar.pycc@gmail.com>",
+      "messages": [],
+      "total_additions": 449,
+      "total_deletions": 135,
+      "accepted_lines": 315,
+      "overriden_lines": 0
+    }
+  }
+}
