@@ -22,9 +22,8 @@ cp -r "$SCRIPT_DIR/resources" "$APPDIR/usr/lib/resources"
 
 cp "$SCRIPT_DIR/vpn-shuttle.desktop" "$APPDIR/usr/share/applications/"
 cp "$SCRIPT_DIR/vpn-shuttle.desktop" "$APPDIR/"
-cp "$SCRIPT_DIR/resources/vpn-shuttle.svg" "$APPDIR/usr/share/icons/hicolor/scalable/apps/"
-cp "$SCRIPT_DIR/resources/vpn-shuttle.svg" "$APPDIR/"
-cp "$SCRIPT_DIR/resources/vpn-shuttle.svg" "$APPDIR/vpn-shuttle.svg"
+cp "$SCRIPT_DIR/resources/vpn-shuttle.svg" "$APPDIR/usr/share/icons/hicolor/scalable/apps/com.vpnshuttle.app.svg"
+cp "$SCRIPT_DIR/resources/vpn-shuttle.svg" "$APPDIR/com.vpnshuttle.app.svg"
 
 cat > "$APPDIR/usr/bin/vpn-shuttle-gui" << 'LAUNCHER'
 #!/bin/bash
