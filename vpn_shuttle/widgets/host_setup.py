@@ -68,7 +68,23 @@ class AddHostDialog(Adw.MessageDialog):
 
         group.add(self._key_entry)
         group.add(self._password_entry)
+
+        self._copy_key_entry = Adw.EntryRow()
+        self._copy_key_entry.set_title("SSH Key to Copy")
+        self._copy_key_entry.set_text(str(os.path.expanduser("~/.ssh/id_rsa")))
+
+        self._copy_key_btn = Gtk.Button(label="Copy SSH Key to Host")
+        self._copy_key_btn.add_css_class("flat")
+        self._copy_key_btn.connect("clicked", self._on_copy_key)
+
+        self._copy_key_group = Adw.PreferencesGroup()
+        self._copy_key_group.set_title("Setup SSH Key Auth")
+        self._copy_key_group.set_description("Copy your SSH key to the host so future connections use key auth")
+        self._copy_key_group.add(self._copy_key_entry)
+        self._copy_key_group.add(self._copy_key_btn)
+
         content.append(group)
+        content.append(self._copy_key_group)
 
         self._update_auth_visibility()
 
@@ -103,6 +119,38 @@ class AddHostDialog(Adw.MessageDialog):
         is_key = self._get_auth_type() == "key"
         self._key_entry.set_visible(is_key)
         self._password_entry.set_visible(not is_key)
+        self._copy_key_group.set_visible(not is_key)
+
+    def _on_copy_key(self, button):
+        ip = self._ip_entry.get_text().strip()
+        user = self._user_entry.get_text().strip()
+        password = self._password_entry.get_text().strip()
+        key_path = self._copy_key_entry.get_text().strip()
+
+        if not ip or not user or not password or not key_path:
+            self._test_label.set_label("Fill in host, user, password and key path first")
+            return
+
+        button.set_sensitive(False)
+        button.set_label("Copying...")
+        self._test_label.set_label("")
+
+        def copy():
+            ok, msg = self._backend.copy_ssh_key(ip, user, password, key_path)
+            GLib.idle_add(self._on_copy_key_done, ok, msg, key_path)
+
+        threading.Thread(target=copy, daemon=True).start()
+
+    def _on_copy_key_done(self, ok, msg, key_path):
+        self._copy_key_btn.set_sensitive(True)
+        if ok:
+            self._copy_key_btn.set_label("Key Copied!")
+            self._test_label.set_label("SSH key copied. Switched to key auth.")
+            self._key_entry.set_text(key_path)
+            self._auth_dropdown.set_selected(0)
+        else:
+            self._copy_key_btn.set_label("Copy SSH Key to Host")
+            self._test_label.set_label(f"Failed: {msg}")
 
     def _on_test(self, button):
         ip = self._ip_entry.get_text().strip()

@@ -210,6 +210,26 @@ class VPNBackend:
         except Exception as e:
             return False, str(e)
 
+    @staticmethod
+    def copy_ssh_key(ip: str, user: str, password: str, key_path: str) -> tuple[bool, str]:
+        pub_path = key_path + ".pub"
+        if not os.path.exists(pub_path):
+            return False, f"Public key not found: {pub_path}"
+        try:
+            cmd = [
+                "sshpass", "-p", password,
+                "ssh-copy-id", "-f",
+                "-i", key_path,
+                "-o", "StrictHostKeyChecking=no",
+                f"{user}@{ip}",
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            if result.returncode == 0:
+                return True, "SSH key copied successfully"
+            return False, (result.stderr or result.stdout).strip()
+        except Exception as e:
+            return False, str(e)
+
     def setup_host(self, host_id: str, log_callback: Callable[[str], None] = None):
         host = self.config.get_host(host_id)
         if not host:
