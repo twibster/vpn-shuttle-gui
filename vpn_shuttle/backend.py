@@ -1,11 +1,97 @@
 import subprocess
 import threading
-import shlex
 import signal
 import os
 import re
 import time
 from typing import Callable, Optional
+
+VPN_MANAGE_SCRIPT = r'''#!/bin/bash
+set -e
+
+ACTION=$1
+CONFIG_NAME=$2
+VPN_TABLE=100
+
+if [ -z "$ACTION" ]; then
+    echo "Usage: vpn-manage {up|down|status} [config-name]"
+    echo "Available configs:"
+    ls /etc/wireguard/*.conf 2>/dev/null | xargs -I{} basename {} .conf
+    exit 0
+fi
+
+case "$ACTION" in
+    up)
+        if [ -z "$CONFIG_NAME" ]; then
+            echo "Error: config name required"
+            exit 1
+        fi
+
+        for iface in $(wg show interfaces 2>/dev/null); do
+            echo "Bringing down existing interface: $iface"
+            wg-quick down "$iface" 2>/dev/null || true
+        done
+
+        while ip rule del table $VPN_TABLE 2>/dev/null; do :; done
+        ip route flush table $VPN_TABLE 2>/dev/null || true
+
+        DEFAULT_GW=$(ip route | grep '^default' | head -1 | awk '{print $3}')
+        DEFAULT_IF=$(ip route | grep '^default' | head -1 | awk '{print $5}')
+        SERVER_IP=$(ip -4 addr show "$DEFAULT_IF" | grep -oP 'inet \K[0-9.]+')
+
+        echo "Default gateway: $DEFAULT_GW via $DEFAULT_IF ($SERVER_IP)"
+
+        wg-quick up "$CONFIG_NAME"
+
+        ip route add default dev "$CONFIG_NAME" table $VPN_TABLE
+        ip route add $(ip route | grep "dev $DEFAULT_IF" | grep -v default | head -1) table $VPN_TABLE 2>/dev/null || true
+
+        ip rule del from "$SERVER_IP" table main priority 50 2>/dev/null || true
+        ip rule add from "$SERVER_IP" table main priority 50
+        ip rule del table $VPN_TABLE priority 100 2>/dev/null || true
+        ip rule add table $VPN_TABLE priority 100
+
+        echo "VPN $CONFIG_NAME is UP"
+        echo "Routing: forwarded traffic -> VPN | server-originated ($SERVER_IP) -> eth0"
+        wg show "$CONFIG_NAME"
+        ;;
+
+    down)
+        while ip rule del table $VPN_TABLE 2>/dev/null; do :; done
+        while ip rule del table main priority 50 2>/dev/null; do :; done
+        ip route flush table $VPN_TABLE 2>/dev/null || true
+
+        if [ -z "$CONFIG_NAME" ]; then
+            for iface in $(wg show interfaces 2>/dev/null); do
+                wg-quick down "$iface" 2>/dev/null || true
+                echo "Brought down: $iface"
+            done
+        else
+            wg-quick down "$CONFIG_NAME" 2>/dev/null || true
+            echo "Brought down: $CONFIG_NAME"
+        fi
+        ;;
+
+    status)
+        echo "=== Active WireGuard Interfaces ==="
+        wg show 2>/dev/null || echo "No active interfaces"
+        echo ""
+        echo "=== Routing Rules ==="
+        ip rule show 2>/dev/null
+        echo ""
+        echo "=== VPN Route Table ($VPN_TABLE) ==="
+        ip route show table $VPN_TABLE 2>/dev/null || echo "Empty"
+        echo ""
+        echo "=== Available Configs ==="
+        ls /etc/wireguard/*.conf 2>/dev/null | xargs -I{} basename {} .conf
+        ;;
+
+    *)
+        echo "Unknown action: $ACTION"
+        exit 1
+        ;;
+esac
+'''
 
 
 class VPNBackend:
@@ -33,12 +119,18 @@ class VPNBackend:
     def _set_status(self, status: str, config_name: Optional[str] = None):
         self._status_callback(status, config_name) if self._status_callback else None
 
-    def _ssh_cmd(self, command: str, timeout: int = 15) -> tuple[int, str]:
+    def _ssh_cmd(self, command: str, timeout: int = 15, host_override: dict = None) -> tuple[int, str]:
+        if host_override:
+            key = host_override.get("ssh_key_path", "")
+            target = f"{host_override.get('user', 'root')}@{host_override.get('ip', '')}"
+        else:
+            key = self.config.ssh_key_path
+            target = self.config.jump_host
         ssh = [
             "ssh", "-o", "ConnectTimeout=5",
             "-o", "StrictHostKeyChecking=no",
-            "-i", self.config.ssh_key_path,
-            self.config.jump_host,
+            "-i", key,
+            target,
             command,
         ]
         try:
@@ -52,9 +144,117 @@ class VPNBackend:
         except Exception as e:
             return -1, str(e)
 
-    def list_configs(self) -> list[str]:
+    def _scp_cmd(self, local_path: str, remote_path: str, host_override: dict = None) -> tuple[int, str]:
+        if host_override:
+            key = host_override.get("ssh_key_path", "")
+            target = f"{host_override.get('user', 'root')}@{host_override.get('ip', '')}"
+        else:
+            key = self.config.ssh_key_path
+            target = self.config.jump_host
+        scp = [
+            "scp", "-i", key,
+            "-o", "StrictHostKeyChecking=no",
+            local_path,
+            f"{target}:{remote_path}",
+        ]
+        try:
+            result = subprocess.run(scp, capture_output=True, text=True, timeout=30)
+            return result.returncode, (result.stdout + result.stderr).strip()
+        except subprocess.TimeoutExpired:
+            return -1, "SCP timed out"
+        except Exception as e:
+            return -1, str(e)
+
+    @staticmethod
+    def test_host_connection(ip: str, user: str, key_path: str) -> tuple[bool, str]:
+        try:
+            result = subprocess.run(
+                [
+                    "ssh", "-o", "ConnectTimeout=5",
+                    "-o", "StrictHostKeyChecking=no",
+                    "-i", key_path,
+                    f"{user}@{ip}",
+                    "echo 'Connection successful'",
+                ],
+                capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode == 0:
+                return True, "Connection successful"
+            return False, result.stderr.strip()
+        except Exception as e:
+            return False, str(e)
+
+    def setup_host(self, host_id: str, log_callback: Callable[[str], None] = None):
+        host = self.config.get_host(host_id)
+        if not host:
+            if log_callback:
+                log_callback("Host not found")
+            return False
+
+        log = log_callback or self._log
+
+        log("Testing SSH connection...")
+        ok, msg = self.test_host_connection(host["ip"], host["user"], host["ssh_key_path"])
+        if not ok:
+            log(f"Connection failed: {msg}")
+            return False
+        log("SSH connection OK")
+
+        log("")
+        log("Installing WireGuard...")
         code, output = self._ssh_cmd(
-            "ls /etc/wireguard/*.conf 2>/dev/null | xargs -I{} basename {} .conf"
+            "apt-get update -qq && apt-get install -y -qq wireguard 2>&1 | tail -5",
+            timeout=120, host_override=host
+        )
+        for line in output.splitlines():
+            log(line)
+        if code != 0:
+            log("WireGuard installation failed")
+            return False
+        log("WireGuard installed")
+
+        log("")
+        log("Enabling IP forwarding...")
+        code, output = self._ssh_cmd(
+            "echo 'net.ipv4.ip_forward = 1' > /etc/sysctl.d/99-wireguard.conf && "
+            "sysctl -p /etc/sysctl.d/99-wireguard.conf",
+            host_override=host
+        )
+        for line in output.splitlines():
+            log(line)
+        log("IP forwarding enabled")
+
+        log("")
+        log("Installing vpn-manage script...")
+        code, output = self._ssh_cmd(
+            f"cat > /usr/local/bin/vpn-manage << 'SCRIPTEOF'\n{VPN_MANAGE_SCRIPT}\nSCRIPTEOF\n"
+            "chmod +x /usr/local/bin/vpn-manage && echo 'vpn-manage installed'",
+            timeout=10, host_override=host
+        )
+        for line in output.splitlines():
+            log(line)
+        if code != 0:
+            log("Failed to install vpn-manage")
+            return False
+
+        log("")
+        log("Verifying WireGuard module...")
+        code, output = self._ssh_cmd(
+            "modprobe wireguard 2>/dev/null && echo 'WireGuard module loaded' || echo 'Module issue (may work after reboot)'",
+            host_override=host
+        )
+        for line in output.splitlines():
+            log(line)
+
+        self.config.update_host(host_id, setup_complete=True)
+        log("")
+        log("Setup complete!")
+        return True
+
+    def list_configs(self, host_override: dict = None) -> list[str]:
+        code, output = self._ssh_cmd(
+            "ls /etc/wireguard/*.conf 2>/dev/null | xargs -I{} basename {} .conf",
+            host_override=host_override
         )
         if code != 0 or not output:
             return []
@@ -87,17 +287,13 @@ class VPNBackend:
             self._log("")
             self._log("Starting sshuttle...")
 
-            route_args = []
-            for s in subnets:
-                route_args.append(s)
-
             sshuttle_cmd = [
                 "sudo", "sshuttle",
                 "-r", self.config.jump_host,
                 "--dns",
                 "-x", f"{self.config.jump_host_ip}/32",
                 "-e", f"ssh -i {self.config.ssh_key_path} -o StrictHostKeyChecking=no",
-            ] + route_args
+            ] + list(subnets)
 
             self._log(f"Routes: {', '.join(subnets)}")
 
@@ -186,33 +382,31 @@ class VPNBackend:
                 return match.group(1).strip()
         return "Unknown"
 
-    def upload_config(self, local_path: str, config_name: str) -> tuple[bool, str]:
-        scp_cmd = [
-            "scp", "-i", self.config.ssh_key_path,
-            "-o", "StrictHostKeyChecking=no",
-            local_path,
-            f"{self.config.jump_host}:/etc/wireguard/{config_name}.conf",
-        ]
-        try:
-            result = subprocess.run(scp_cmd, capture_output=True, text=True, timeout=15)
-            if result.returncode != 0:
-                return False, f"SCP failed: {result.stderr}"
-        except Exception as e:
-            return False, str(e)
+    def upload_config(self, local_path: str, config_name: str, host_override: dict = None) -> tuple[bool, str]:
+        if host_override:
+            target = f"{host_override.get('user', 'root')}@{host_override.get('ip', '')}"
+        else:
+            target = self.config.jump_host
+
+        code, msg = self._scp_cmd(local_path, f"/etc/wireguard/{config_name}.conf", host_override=host_override)
+        if code != 0:
+            return False, f"SCP failed: {msg}"
 
         code, output = self._ssh_cmd(
             f"sed -i '/^DNS/d' /etc/wireguard/{config_name}.conf && "
             f"grep -q 'Table' /etc/wireguard/{config_name}.conf || "
             f"sed -i '/^\\[Interface\\]/a Table = off' /etc/wireguard/{config_name}.conf && "
-            f"echo 'Config prepared successfully'"
+            f"echo 'Config prepared successfully'",
+            host_override=host_override
         )
         if code != 0:
             return False, f"Config preparation failed: {output}"
         return True, "Config uploaded and prepared"
 
-    def delete_config(self, config_name: str) -> tuple[bool, str]:
+    def delete_config(self, config_name: str, host_override: dict = None) -> tuple[bool, str]:
         code, output = self._ssh_cmd(
-            f"rm -f /etc/wireguard/{config_name}.conf && echo 'Deleted'"
+            f"rm -f /etc/wireguard/{config_name}.conf && echo 'Deleted'",
+            host_override=host_override
         )
         if code != 0:
             return False, f"Delete failed: {output}"
