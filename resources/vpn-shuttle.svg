@@ -1,18 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#3584e4"/>
-      <stop offset="100%" style="stop-color:#1a73e8"/>
+      <stop offset="0%" style="stop-color:#1a1a1a"/>
+      <stop offset="100%" style="stop-color:#0a0a0a"/>
     </linearGradient>
+    <linearGradient id="textGlow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff"/>
+      <stop offset="100%" style="stop-color:#b0b0b0"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
   </defs>
   <rect width="128" height="128" rx="24" fill="url(#bg)"/>
-  <g transform="translate(64,64)">
-    <!-- Shield -->
-    <path d="M0-38 C20-38 32-30 32-20 L32 5 C32 25 16 35 0 42 C-16 35-32 25-32 5 L-32-20 C-32-30-20-38 0-38Z" fill="white" opacity="0.95"/>
-    <!-- Lock icon -->
-    <rect x="-12" y="-5" width="24" height="20" rx="3" fill="#3584e4"/>
-    <path d="M-7-5 L-7-12 C-7-16-4-19 0-19 C4-19 7-16 7-12 L7-5" fill="none" stroke="#3584e4" stroke-width="4" stroke-linecap="round"/>
-    <circle cx="0" cy="6" r="3" fill="white"/>
-    <rect x="-1" y="6" width="2" height="5" rx="1" fill="white"/>
+  <rect x="1" y="1" width="126" height="126" rx="23" fill="none" stroke="#333" stroke-width="1"/>
+  <g filter="url(#glow)">
+    <text x="64" y="72" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="42" font-weight="800" letter-spacing="4" text-anchor="middle" fill="url(#textGlow)">VPN</text>
   </g>
+  <rect x="24" y="82" width="80" height="1.5" rx="1" fill="#444"/>
+  <text x="64" y="96" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="9" font-weight="400" letter-spacing="6" text-anchor="middle" fill="#666">SHUTTLE</text>
 </svg>
