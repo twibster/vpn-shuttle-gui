@@ -90,6 +90,13 @@ class MainWindow(Adw.ApplicationWindow):
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
 
         header = Adw.HeaderBar()
+        header.set_title_widget(Gtk.Label())
+
+        settings_btn = Gtk.Button()
+        settings_btn.set_icon_name("emblem-system-symbolic")
+        settings_btn.set_tooltip_text("Settings")
+        settings_btn.connect("clicked", self._on_settings_clicked)
+        header.pack_start(settings_btn)
 
         host_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         host_label = Gtk.Label(label="Host:")
@@ -108,7 +115,6 @@ class MainWindow(Adw.ApplicationWindow):
         self._config_dropdown = Gtk.DropDown()
         self._config_dropdown.set_size_request(150, -1)
         vpn_box.append(self._config_dropdown)
-
         refresh_btn = Gtk.Button()
         refresh_btn.set_icon_name("view-refresh-symbolic")
         refresh_btn.set_tooltip_text("Refresh")
@@ -120,13 +126,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._connect_btn.add_css_class("suggested-action")
         self._connect_btn.add_css_class("connect-btn")
         self._connect_btn.connect("clicked", self._on_connect_clicked)
-        header.set_title_widget(self._connect_btn)
-
-        settings_btn = Gtk.Button()
-        settings_btn.set_icon_name("emblem-system-symbolic")
-        settings_btn.set_tooltip_text("Settings")
-        settings_btn.connect("clicked", self._on_settings_clicked)
-        header.pack_end(settings_btn)
+        header.pack_end(self._connect_btn)
 
         main_box.append(header)
 
