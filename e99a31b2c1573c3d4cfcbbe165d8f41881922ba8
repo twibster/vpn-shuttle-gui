@@ -1,0 +1,31 @@
+vpn_shuttle/app.py
+  e1e646934f6bf213 34,38-39,46,56,58-63,65-66,68-69,73-75,77,98,103,112-130,132-142,144-147,150,154,182-185,206,235,251,258
+vpn_shuttle/backend.py
+  e1e646934f6bf213 9-94,122-128,132-133,147-164,167-185,187-228,230-254,256-257,296,385-393,399-400,406,408-409
+vpn_shuttle/widgets/settings.py
+  e1e646934f6bf213 2,6,8,12,17,21-26,28-29,31-34,36-44,46-89,94-103,105-112,114-121,125,128,130-133,135-147
+vpn_shuttle/config.py
+  e1e646934f6bf213 2,9-10,13-20,35,40-55,69-114,119-122,126-127,131-132,135-138,141-149
+vpn_shuttle/widgets/host_setup.py
+  e1e646934f6bf213 1-323
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.5",
+  "base_commit_sha": "e99a31b2c1573c3d4cfcbbe165d8f41881922ba8",
+  "prompts": {
+    "e1e646934f6bf213": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6ba3ae24-36ab-4f4d-8ba1-b361769f1cbf",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Omar Omran <omar.pycc@gmail.com>",
+      "messages": [],
+      "total_additions": 841,
+      "total_deletions": 254,
+      "accepted_lines": 826,
+      "overriden_lines": 0
+    }
+  }
+}
