@@ -14,7 +14,6 @@ from vpn_shuttle.widgets.logs import LogViewer
 from vpn_shuttle.widgets.routing import RoutingEditor
 from vpn_shuttle.widgets.settings import SettingsDialog
 from vpn_shuttle.widgets.history import HistoryDialog
-from vpn_shuttle.widgets.dns_test import DnsLeakDialog
 
 CSS = """
 .connect-btn { min-width: 120px; }
@@ -137,13 +136,6 @@ class MainWindow(Adw.ApplicationWindow):
         self._connect_btn.add_css_class("connect-btn")
         self._connect_btn.connect("clicked", self._on_connect_clicked)
         header.pack_end(self._connect_btn)
-
-        self._dns_btn = Gtk.Button()
-        self._dns_btn.set_icon_name("network-server-symbolic")
-        self._dns_btn.set_tooltip_text("DNS Leak Test")
-        self._dns_btn.set_sensitive(False)
-        self._dns_btn.connect("clicked", self._on_dns_test_clicked)
-        header.pack_end(self._dns_btn)
 
         history_btn = Gtk.Button()
         history_btn.set_icon_name("document-open-recent-symbolic")
@@ -319,7 +311,6 @@ class MainWindow(Adw.ApplicationWindow):
             self._host_dropdown.set_sensitive(False)
             self._config_dropdown.set_sensitive(False)
             self._routing_editor.set_sensitive(False)
-            self._dns_btn.set_sensitive(True)
             self._status_panel.update_status(
                 "connected",
                 config_name=config_name,
@@ -340,7 +331,6 @@ class MainWindow(Adw.ApplicationWindow):
             self._host_dropdown.set_sensitive(True)
             self._config_dropdown.set_sensitive(True)
             self._routing_editor.set_sensitive(True)
-            self._dns_btn.set_sensitive(False)
             self._status_panel.update_status("disconnected")
             self._status_panel.stop_stats()
             self._send_notification("VPN Disconnected", "Connection ended")
@@ -362,10 +352,6 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_history_clicked(self, button):
         dialog = HistoryDialog(self, self._config)
-        dialog.present()
-
-    def _on_dns_test_clicked(self, button):
-        dialog = DnsLeakDialog(self)
         dialog.present()
 
 

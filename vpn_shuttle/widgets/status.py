@@ -118,8 +118,8 @@ class StatusPanel(Gtk.Frame):
         return True
 
     def start_stats(self, backend):
-        self._backend = backend
         self.stop_stats()
+        self._backend = backend
         self._stats_timer_id = GLib.timeout_add_seconds(5, self._poll_stats)
         self._poll_stats()
 
