@@ -91,42 +91,42 @@ class MainWindow(Adw.ApplicationWindow):
 
         header = Adw.HeaderBar()
 
-        selector_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        selector_box.set_margin_start(4)
-
+        host_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         host_label = Gtk.Label(label="Host:")
-        selector_box.append(host_label)
+        host_label.add_css_class("dim-label")
+        host_box.append(host_label)
         self._host_dropdown = Gtk.DropDown()
-        self._host_dropdown.set_size_request(150, -1)
+        self._host_dropdown.set_size_request(140, -1)
         self._host_dropdown.connect("notify::selected", self._on_host_changed)
-        selector_box.append(self._host_dropdown)
+        host_box.append(self._host_dropdown)
+        header.pack_start(host_box)
 
+        vpn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         vpn_label = Gtk.Label(label="VPN:")
-        selector_box.append(vpn_label)
+        vpn_label.add_css_class("dim-label")
+        vpn_box.append(vpn_label)
         self._config_dropdown = Gtk.DropDown()
-        self._config_dropdown.set_size_request(160, -1)
-        selector_box.append(self._config_dropdown)
+        self._config_dropdown.set_size_request(150, -1)
+        vpn_box.append(self._config_dropdown)
 
         refresh_btn = Gtk.Button()
         refresh_btn.set_icon_name("view-refresh-symbolic")
         refresh_btn.set_tooltip_text("Refresh")
         refresh_btn.connect("clicked", lambda b: self._refresh_hosts())
-        selector_box.append(refresh_btn)
-
-        settings_btn = Gtk.Button()
-        settings_btn.set_icon_name("emblem-system-symbolic")
-        settings_btn.set_tooltip_text("Settings")
-        settings_btn.connect("clicked", self._on_settings_clicked)
-        selector_box.append(settings_btn)
-
-        header.pack_start(selector_box)
+        vpn_box.append(refresh_btn)
+        header.pack_start(vpn_box)
 
         self._connect_btn = Gtk.Button(label="Connect")
         self._connect_btn.add_css_class("suggested-action")
         self._connect_btn.add_css_class("connect-btn")
         self._connect_btn.connect("clicked", self._on_connect_clicked)
-
         header.set_title_widget(self._connect_btn)
+
+        settings_btn = Gtk.Button()
+        settings_btn.set_icon_name("emblem-system-symbolic")
+        settings_btn.set_tooltip_text("Settings")
+        settings_btn.connect("clicked", self._on_settings_clicked)
+        header.pack_end(settings_btn)
 
         main_box.append(header)
 
