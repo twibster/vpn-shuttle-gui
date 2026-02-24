@@ -1,0 +1,27 @@
+vpn-shuttle.desktop
+  e1e646934f6bf213 4-5
+build-appimage.sh
+  e1e646934f6bf213 25-26
+install.sh
+  e1e646934f6bf213 1-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.5",
+  "base_commit_sha": "03f713b9ab1821d9f66c7e5c8b12248b2fc36a62",
+  "prompts": {
+    "e1e646934f6bf213": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6ba3ae24-36ab-4f4d-8ba1-b361769f1cbf",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Omar Omran <omar.pycc@gmail.com>",
+      "messages": [],
+      "total_additions": 62,
+      "total_deletions": 5,
+      "accepted_lines": 62,
+      "overriden_lines": 0
+    }
+  }
+}
