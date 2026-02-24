@@ -1,9 +1,8 @@
 import gi
-import threading
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Gtk, Adw, GLib
+from gi.repository import Gtk, Adw, Gio
 
 from vpn_shuttle.widgets.host_setup import AddHostDialog, HostSetupDialog, HostConfigsDialog
 
@@ -21,6 +20,72 @@ class SettingsDialog(Adw.PreferencesWindow):
         self._on_hosts_changed = on_hosts_changed
         self._parent = parent
 
+        self._build_general_page()
+        self._build_hosts_page()
+
+    def _build_general_page(self):
+        page = Adw.PreferencesPage()
+        page.set_title("General")
+        page.set_icon_name("emblem-system-symbolic")
+
+        behavior_group = Adw.PreferencesGroup()
+        behavior_group.set_title("Behavior")
+
+        self._auto_connect_row = Adw.ActionRow()
+        self._auto_connect_row.set_title("Auto-connect on startup")
+        self._auto_connect_row.set_subtitle("Reconnect to the last used VPN config automatically")
+        self._auto_connect_switch = Gtk.Switch()
+        self._auto_connect_switch.set_active(bool(self._config.get("auto_connect")))
+        self._auto_connect_switch.set_valign(Gtk.Align.CENTER)
+        self._auto_connect_switch.connect("notify::active", self._on_auto_connect_toggled)
+        self._auto_connect_row.add_suffix(self._auto_connect_switch)
+        self._auto_connect_row.set_activatable_widget(self._auto_connect_switch)
+        behavior_group.add(self._auto_connect_row)
+
+        self._notifications_row = Adw.ActionRow()
+        self._notifications_row.set_title("Desktop notifications")
+        self._notifications_row.set_subtitle("Show notifications on connect/disconnect")
+        self._notifications_switch = Gtk.Switch()
+        self._notifications_switch.set_active(bool(self._config.get("notifications")))
+        self._notifications_switch.set_valign(Gtk.Align.CENTER)
+        self._notifications_switch.connect("notify::active", self._on_notifications_toggled)
+        self._notifications_row.add_suffix(self._notifications_switch)
+        self._notifications_row.set_activatable_widget(self._notifications_switch)
+        behavior_group.add(self._notifications_row)
+
+        page.add(behavior_group)
+
+        backup_group = Adw.PreferencesGroup()
+        backup_group.set_title("Backup")
+
+        export_row = Adw.ActionRow()
+        export_row.set_title("Export Settings")
+        export_row.set_subtitle("Save all settings to a file")
+        export_btn = Gtk.Button()
+        export_btn.set_icon_name("document-save-symbolic")
+        export_btn.add_css_class("flat")
+        export_btn.set_valign(Gtk.Align.CENTER)
+        export_btn.connect("clicked", self._on_export)
+        export_row.add_suffix(export_btn)
+        export_row.set_activatable_widget(export_btn)
+        backup_group.add(export_row)
+
+        import_row = Adw.ActionRow()
+        import_row.set_title("Import Settings")
+        import_row.set_subtitle("Restore settings from a file")
+        import_btn = Gtk.Button()
+        import_btn.set_icon_name("document-open-symbolic")
+        import_btn.add_css_class("flat")
+        import_btn.set_valign(Gtk.Align.CENTER)
+        import_btn.connect("clicked", self._on_import)
+        import_row.add_suffix(import_btn)
+        import_row.set_activatable_widget(import_btn)
+        backup_group.add(import_row)
+
+        page.add(backup_group)
+        self.add(page)
+
+    def _build_hosts_page(self):
         hosts_page = Adw.PreferencesPage()
         hosts_page.set_title("Hosts")
         hosts_page.set_icon_name("network-server-symbolic")
@@ -37,6 +102,62 @@ class SettingsDialog(Adw.PreferencesWindow):
         self.add(hosts_page)
 
         self._populate_hosts()
+
+    def _on_auto_connect_toggled(self, switch, param):
+        self._config.set("auto_connect", switch.get_active())
+
+    def _on_notifications_toggled(self, switch, param):
+        self._config.set("notifications", switch.get_active())
+
+    def _on_export(self, button):
+        dialog = Gtk.FileDialog()
+        dialog.set_initial_name("vpn-shuttle-settings.json")
+        json_filter = Gtk.FileFilter()
+        json_filter.set_name("JSON files")
+        json_filter.add_pattern("*.json")
+        filters = Gio.ListStore.new(Gtk.FileFilter)
+        filters.append(json_filter)
+        dialog.set_filters(filters)
+        dialog.save(self, None, self._on_export_done)
+
+    def _on_export_done(self, dialog, result):
+        try:
+            file = dialog.save_finish(result)
+            if file:
+                self._config.export_settings(file.get_path())
+        except Exception:
+            pass
+
+    def _on_import(self, button):
+        dlg = Adw.MessageDialog.new(self, "Import Settings?", "This will replace all current settings.")
+        dlg.add_response("cancel", "Cancel")
+        dlg.add_response("import", "Import")
+        dlg.set_response_appearance("import", Adw.ResponseAppearance.DESTRUCTIVE)
+        dlg.connect("response", self._on_import_confirmed)
+        dlg.present()
+
+    def _on_import_confirmed(self, dialog, response):
+        if response != "import":
+            return
+        file_dialog = Gtk.FileDialog()
+        json_filter = Gtk.FileFilter()
+        json_filter.set_name("JSON files")
+        json_filter.add_pattern("*.json")
+        filters = Gio.ListStore.new(Gtk.FileFilter)
+        filters.append(json_filter)
+        file_dialog.set_filters(filters)
+        file_dialog.open(self, None, self._on_import_done)
+
+    def _on_import_done(self, dialog, result):
+        try:
+            file = dialog.open_finish(result)
+            if file:
+                self._config.import_settings(file.get_path())
+                self._refresh()
+                self._auto_connect_switch.set_active(bool(self._config.get("auto_connect")))
+                self._notifications_switch.set_active(bool(self._config.get("notifications")))
+        except Exception:
+            pass
 
     def _populate_hosts(self):
         hosts = self._config.get_hosts()
