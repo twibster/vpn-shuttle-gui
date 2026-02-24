@@ -5,36 +5,44 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk, Gio
 
 
-class RoutingEditor(Gtk.Box):
+class RoutingEditor(Gtk.Frame):
     def __init__(self):
-        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        self.set_margin_start(16)
-        self.set_margin_end(16)
-        self.set_margin_bottom(12)
+        super().__init__()
+        self.add_css_class("routing-card")
+        self.set_label_widget(None)
 
-        mode_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        label = Gtk.Label(label="Routing Mode:")
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        box.set_margin_start(4)
+        box.set_margin_end(4)
+        box.set_margin_top(4)
+        box.set_margin_bottom(4)
+
+        mode_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+
+        label = Gtk.Label(label="Routing")
         label.add_css_class("title-4")
-        mode_box.append(label)
+        label.set_hexpand(True)
+        label.set_xalign(0)
+        mode_row.append(label)
 
-        self._all_radio = Gtk.CheckButton(label="All Traffic")
-        mode_box.append(self._all_radio)
+        toggle_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        toggle_box.add_css_class("linked")
 
-        self._specific_radio = Gtk.CheckButton(label="Specific IPs")
-        self._specific_radio.set_group(self._all_radio)
-        mode_box.append(self._specific_radio)
+        self._all_btn = Gtk.ToggleButton(label="All Traffic")
+        self._all_btn.set_active(True)
+        self._all_btn.add_css_class("mode-toggle")
+        self._all_btn.connect("toggled", self._on_all_toggled)
+        toggle_box.append(self._all_btn)
 
-        self._all_radio.set_active(True)
-        self._all_radio.connect("toggled", self._on_mode_toggled)
-        self._specific_radio.connect("toggled", self._on_mode_toggled)
-        self.append(mode_box)
+        self._specific_btn = Gtk.ToggleButton(label="Specific IPs")
+        self._specific_btn.add_css_class("mode-toggle")
+        self._specific_btn.connect("toggled", self._on_specific_toggled)
+        toggle_box.append(self._specific_btn)
 
-        self._ip_frame = Gtk.Frame()
-        ip_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        ip_box.set_margin_start(8)
-        ip_box.set_margin_end(8)
-        ip_box.set_margin_top(8)
-        ip_box.set_margin_bottom(8)
+        mode_row.append(toggle_box)
+        box.append(mode_row)
+
+        self._ip_frame = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
 
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_min_content_height(120)
@@ -45,9 +53,11 @@ class RoutingEditor(Gtk.Box):
         self._ip_listbox.set_selection_mode(Gtk.SelectionMode.NONE)
         self._ip_listbox.add_css_class("boxed-list")
         scrolled.set_child(self._ip_listbox)
-        ip_box.append(scrolled)
+        self._ip_frame.append(scrolled)
 
         add_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        add_box.set_hexpand(True)
+
         self._ip_entry = Gtk.Entry()
         self._ip_entry.set_placeholder_text("e.g. 10.0.0.0/8")
         self._ip_entry.set_hexpand(True)
@@ -63,15 +73,23 @@ class RoutingEditor(Gtk.Box):
         import_btn.connect("clicked", self._on_import_file)
         add_box.append(import_btn)
 
-        ip_box.append(add_box)
-        self._ip_frame.set_child(ip_box)
-        self.append(self._ip_frame)
+        self._ip_frame.append(add_box)
+        box.append(self._ip_frame)
 
-        self._ip_frame.set_sensitive(False)
+        self.set_child(box)
+        self._ip_frame.set_visible(False)
 
-    def _on_mode_toggled(self, button):
-        is_specific = self._specific_radio.get_active()
-        self._ip_frame.set_sensitive(is_specific)
+    def _on_all_toggled(self, button):
+        if button.get_active():
+            self._specific_btn.set_active(False)
+            self._ip_frame.set_visible(False)
+
+    def _on_specific_toggled(self, button):
+        if button.get_active():
+            self._all_btn.set_active(False)
+            self._ip_frame.set_visible(True)
+        elif not self._all_btn.get_active():
+            self._all_btn.set_active(True)
 
     def _on_add_ip(self, widget):
         text = self._ip_entry.get_text().strip()
@@ -95,10 +113,10 @@ class RoutingEditor(Gtk.Box):
                 return
 
         row_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        row_box.set_margin_start(8)
+        row_box.set_margin_start(12)
         row_box.set_margin_end(8)
-        row_box.set_margin_top(4)
-        row_box.set_margin_bottom(4)
+        row_box.set_margin_top(6)
+        row_box.set_margin_bottom(6)
         row_box.ip_text = ip
 
         label = Gtk.Label(label=ip)
@@ -149,7 +167,7 @@ class RoutingEditor(Gtk.Box):
             pass
 
     def get_subnets(self) -> list[str]:
-        if self._all_radio.get_active():
+        if self._all_btn.get_active():
             return ["0/0"]
 
         subnets = []
@@ -169,12 +187,12 @@ class RoutingEditor(Gtk.Box):
             self._ip_listbox.remove(row)
 
         if not subnets or subnets == ["0/0"]:
-            self._all_radio.set_active(True)
+            self._all_btn.set_active(True)
         else:
-            self._specific_radio.set_active(True)
+            self._specific_btn.set_active(True)
             for s in subnets:
                 self._add_ip_row(s)
 
     @property
     def is_all_traffic(self):
-        return self._all_radio.get_active()
+        return self._all_btn.get_active()

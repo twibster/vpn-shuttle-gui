@@ -119,20 +119,34 @@ class VPNBackend:
     def _set_status(self, status: str, config_name: Optional[str] = None):
         self._status_callback(status, config_name) if self._status_callback else None
 
+    @staticmethod
+    def _get_host_auth(host):
+        auth_type = host.get("auth_type", "key")
+        key = host.get("ssh_key_path", "")
+        password = host.get("password", "")
+        target = f"{host.get('user', 'root')}@{host.get('ip', '')}"
+        return auth_type, key, password, target
+
     def _ssh_cmd(self, command: str, timeout: int = 15, host_override: dict = None) -> tuple[int, str]:
         if host_override:
-            key = host_override.get("ssh_key_path", "")
-            target = f"{host_override.get('user', 'root')}@{host_override.get('ip', '')}"
+            auth_type, key, password, target = self._get_host_auth(host_override)
         else:
+            auth_type = self.config.auth_type
             key = self.config.ssh_key_path
+            password = self.config.password
             target = self.config.jump_host
+
         ssh = [
             "ssh", "-o", "ConnectTimeout=5",
             "-o", "StrictHostKeyChecking=no",
-            "-i", key,
-            target,
-            command,
         ]
+        if auth_type == "key":
+            ssh += ["-i", key]
+        ssh += [target, command]
+
+        if auth_type == "password":
+            ssh = ["sshpass", "-p", password] + ssh
+
         try:
             result = subprocess.run(
                 ssh, capture_output=True, text=True, timeout=timeout
@@ -146,17 +160,25 @@ class VPNBackend:
 
     def _scp_cmd(self, local_path: str, remote_path: str, host_override: dict = None) -> tuple[int, str]:
         if host_override:
-            key = host_override.get("ssh_key_path", "")
-            target = f"{host_override.get('user', 'root')}@{host_override.get('ip', '')}"
+            auth_type, key, password, target = self._get_host_auth(host_override)
         else:
+            auth_type = self.config.auth_type
             key = self.config.ssh_key_path
+            password = self.config.password
             target = self.config.jump_host
-        scp = [
-            "scp", "-i", key,
+
+        scp = ["scp"]
+        if auth_type == "key":
+            scp += ["-i", key]
+        scp += [
             "-o", "StrictHostKeyChecking=no",
             local_path,
             f"{target}:{remote_path}",
         ]
+
+        if auth_type == "password":
+            scp = ["sshpass", "-p", password] + scp
+
         try:
             result = subprocess.run(scp, capture_output=True, text=True, timeout=30)
             return result.returncode, (result.stdout + result.stderr).strip()
@@ -166,21 +188,45 @@ class VPNBackend:
             return -1, str(e)
 
     @staticmethod
-    def test_host_connection(ip: str, user: str, key_path: str) -> tuple[bool, str]:
+    def test_host_connection(ip: str, user: str, key_path: str = "", auth_type: str = "key", password: str = "") -> tuple[bool, str]:
         try:
+            ssh = [
+                "ssh", "-o", "ConnectTimeout=5",
+                "-o", "StrictHostKeyChecking=no",
+            ]
+            if auth_type == "key":
+                ssh += ["-i", key_path]
+            ssh += [f"{user}@{ip}", "echo 'Connection successful'"]
+
+            if auth_type == "password":
+                ssh = ["sshpass", "-p", password] + ssh
+
             result = subprocess.run(
-                [
-                    "ssh", "-o", "ConnectTimeout=5",
-                    "-o", "StrictHostKeyChecking=no",
-                    "-i", key_path,
-                    f"{user}@{ip}",
-                    "echo 'Connection successful'",
-                ],
-                capture_output=True, text=True, timeout=10,
+                ssh, capture_output=True, text=True, timeout=10,
             )
             if result.returncode == 0:
                 return True, "Connection successful"
             return False, result.stderr.strip()
+        except Exception as e:
+            return False, str(e)
+
+    @staticmethod
+    def copy_ssh_key(ip: str, user: str, password: str, key_path: str) -> tuple[bool, str]:
+        pub_path = key_path + ".pub"
+        if not os.path.exists(pub_path):
+            return False, f"Public key not found: {pub_path}"
+        try:
+            cmd = [
+                "sshpass", "-p", password,
+                "ssh-copy-id", "-f",
+                "-i", key_path,
+                "-o", "StrictHostKeyChecking=no",
+                f"{user}@{ip}",
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            if result.returncode == 0:
+                return True, "SSH key copied successfully"
+            return False, (result.stderr or result.stdout).strip()
         except Exception as e:
             return False, str(e)
 
@@ -194,7 +240,10 @@ class VPNBackend:
         log = log_callback or self._log
 
         log("Testing SSH connection...")
-        ok, msg = self.test_host_connection(host["ip"], host["user"], host["ssh_key_path"])
+        ok, msg = self.test_host_connection(
+            host["ip"], host["user"], host.get("ssh_key_path", ""),
+            auth_type=host.get("auth_type", "key"), password=host.get("password", "")
+        )
         if not ok:
             log(f"Connection failed: {msg}")
             return False
@@ -287,12 +336,20 @@ class VPNBackend:
             self._log("")
             self._log("Starting sshuttle...")
 
-            sshuttle_cmd = [
-                "sudo", "sshuttle",
+            if self.config.auth_type == "password":
+                ssh_e = "sshpass -e ssh -o StrictHostKeyChecking=no"
+            else:
+                ssh_e = f"ssh -i {self.config.ssh_key_path} -o StrictHostKeyChecking=no"
+
+            sshuttle_cmd = ["sudo"]
+            if self.config.auth_type == "password":
+                sshuttle_cmd += ["env", f"SSHPASS={self.config.password}"]
+            sshuttle_cmd += [
+                "sshuttle",
                 "-r", self.config.jump_host,
                 "--dns",
                 "-x", f"{self.config.jump_host_ip}/32",
-                "-e", f"ssh -i {self.config.ssh_key_path} -o StrictHostKeyChecking=no",
+                "-e", ssh_e,
             ] + list(subnets)
 
             self._log(f"Routes: {', '.join(subnets)}")

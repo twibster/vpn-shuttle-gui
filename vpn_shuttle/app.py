@@ -15,15 +15,53 @@ from vpn_shuttle.widgets.routing import RoutingEditor
 from vpn_shuttle.widgets.settings import SettingsDialog
 
 CSS = """
-.status-connected { color: #2ec27e; font-size: 24px; }
-.status-connecting { color: #e5a50a; font-size: 24px; }
-.status-disconnected { color: #c01c28; font-size: 24px; }
+.connect-btn { min-width: 120px; }
+
+.status-card {
+    border-radius: 12px;
+    padding: 16px;
+    transition: background 200ms ease;
+}
+.status-card-disconnected {
+    background: alpha(@error_color, 0.08);
+    border: 1px solid alpha(@error_color, 0.15);
+}
+.status-card-connected {
+    background: alpha(@success_color, 0.08);
+    border: 1px solid alpha(@success_color, 0.15);
+}
+.status-card-connecting {
+    background: alpha(@warning_color, 0.08);
+    border: 1px solid alpha(@warning_color, 0.15);
+}
+.status-icon-disconnected { color: @error_color; }
+.status-icon-connected { color: @success_color; }
+.status-icon-connecting { color: @warning_color; }
+.status-value { font-weight: bold; }
+
+.routing-card {
+    border-radius: 12px;
+    padding: 16px;
+    background: alpha(@card_bg_color, 0.5);
+    border: 1px solid alpha(@borders, 0.5);
+}
+.mode-toggle {
+    min-width: 100px;
+}
+
+.log-frame {
+    border-radius: 12px;
+    background: alpha(@card_bg_color, 0.5);
+    border: 1px solid alpha(@borders, 0.5);
+}
+.log-header {
+    padding: 10px 16px;
+}
 .log-view {
     font-size: 12px;
-    padding: 8px;
-    background: rgba(0,0,0,0.05);
+    padding: 8px 16px;
+    background: transparent;
 }
-.connect-btn { min-width: 120px; }
 """
 
 
@@ -46,35 +84,43 @@ class MainWindow(Adw.ApplicationWindow):
         self._refresh_hosts()
 
         if self._config.get("routing_mode") == "specific":
-            self._routing_editor._specific_radio.set_active(True)
+            self._routing_editor._specific_btn.set_active(True)
 
     def _build_ui(self):
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
 
         header = Adw.HeaderBar()
+        header.set_title_widget(Gtk.Label())
 
-        selector_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        settings_btn = Gtk.Button()
+        settings_btn.set_icon_name("emblem-system-symbolic")
+        settings_btn.set_tooltip_text("Settings")
+        settings_btn.connect("clicked", self._on_settings_clicked)
+        header.pack_start(settings_btn)
 
+        host_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         host_label = Gtk.Label(label="Host:")
-        selector_box.append(host_label)
+        host_label.add_css_class("dim-label")
+        host_box.append(host_label)
         self._host_dropdown = Gtk.DropDown()
-        self._host_dropdown.set_size_request(150, -1)
+        self._host_dropdown.set_size_request(140, -1)
         self._host_dropdown.connect("notify::selected", self._on_host_changed)
-        selector_box.append(self._host_dropdown)
+        host_box.append(self._host_dropdown)
+        header.pack_start(host_box)
 
+        vpn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         vpn_label = Gtk.Label(label="VPN:")
-        selector_box.append(vpn_label)
+        vpn_label.add_css_class("dim-label")
+        vpn_box.append(vpn_label)
         self._config_dropdown = Gtk.DropDown()
-        self._config_dropdown.set_size_request(160, -1)
-        selector_box.append(self._config_dropdown)
-
+        self._config_dropdown.set_size_request(150, -1)
+        vpn_box.append(self._config_dropdown)
         refresh_btn = Gtk.Button()
         refresh_btn.set_icon_name("view-refresh-symbolic")
         refresh_btn.set_tooltip_text("Refresh")
         refresh_btn.connect("clicked", lambda b: self._refresh_hosts())
-        selector_box.append(refresh_btn)
-
-        header.pack_start(selector_box)
+        vpn_box.append(refresh_btn)
+        header.pack_start(vpn_box)
 
         self._connect_btn = Gtk.Button(label="Connect")
         self._connect_btn.add_css_class("suggested-action")
@@ -82,25 +128,19 @@ class MainWindow(Adw.ApplicationWindow):
         self._connect_btn.connect("clicked", self._on_connect_clicked)
         header.pack_end(self._connect_btn)
 
-        settings_btn = Gtk.Button()
-        settings_btn.set_icon_name("emblem-system-symbolic")
-        settings_btn.set_tooltip_text("Settings")
-        settings_btn.connect("clicked", self._on_settings_clicked)
-        header.pack_end(settings_btn)
-
         main_box.append(header)
 
-        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        content.set_margin_start(16)
+        content.set_margin_end(16)
+        content.set_margin_top(12)
+        content.set_margin_bottom(12)
 
         self._status_panel = StatusPanel()
         content.append(self._status_panel)
 
-        content.append(Gtk.Separator())
-
         self._routing_editor = RoutingEditor()
         content.append(self._routing_editor)
-
-        content.append(Gtk.Separator())
 
         self._log_viewer = LogViewer()
         self._log_viewer.set_vexpand(True)
