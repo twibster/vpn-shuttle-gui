@@ -4,6 +4,7 @@ import signal
 import os
 import re
 import time
+from datetime import datetime
 from typing import Callable, Optional
 
 VPN_MANAGE_SCRIPT = r'''#!/bin/bash
@@ -267,6 +268,11 @@ class VPNBackend:
         thread.start()
 
     def _connect_thread(self, config_name: str, subnets: list[str]):
+        started_at = datetime.now().isoformat()
+        host = self.config.get_active_host()
+        host_name = host.get("name", "Unknown")
+        host_ip = host.get("ip", "Unknown")
+
         with self._lock:
             if self._connected:
                 self._log("Already connected. Disconnecting first...")
@@ -282,6 +288,10 @@ class VPNBackend:
             if code != 0:
                 self._log(f"Failed to activate VPN: exit code {code}")
                 self._set_status("disconnected")
+                self.config.add_history_entry(
+                    config_name, host_name, host_ip, started_at,
+                    datetime.now().isoformat(), 0, subnets, "failed"
+                )
                 return
 
             self._log("")
@@ -309,6 +319,10 @@ class VPNBackend:
                 self._log(f"Failed to start sshuttle: {e}")
                 self._ssh_cmd(f"vpn-manage down {config_name}")
                 self._set_status("disconnected")
+                self.config.add_history_entry(
+                    config_name, host_name, host_ip, started_at,
+                    datetime.now().isoformat(), 0, subnets, "failed"
+                )
                 return
 
             self._connected = True
@@ -327,6 +341,9 @@ class VPNBackend:
         exit_code = self._sshuttle_proc.returncode
         self._log(f"sshuttle exited (code {exit_code})")
 
+        ended_at = datetime.now().isoformat()
+        duration = int(time.time() - (self._connect_time or time.time()))
+
         with self._lock:
             self._connected = False
             self._active_config = None
@@ -337,6 +354,11 @@ class VPNBackend:
         self._ssh_cmd(f"vpn-manage down {config_name}")
         self._log("Disconnected.")
         self._set_status("disconnected")
+
+        self.config.add_history_entry(
+            config_name, host_name, host_ip, started_at,
+            ended_at, duration, subnets, "completed"
+        )
 
     def disconnect(self):
         thread = threading.Thread(target=self._disconnect_thread, daemon=True)
@@ -411,3 +433,36 @@ class VPNBackend:
         if code != 0:
             return False, f"Delete failed: {output}"
         return True, "Config deleted"
+
+    def get_latency(self):
+        ip = self.config.jump_host_ip
+        if not ip:
+            return None
+        try:
+            result = subprocess.run(
+                ["ping", "-c", "1", "-W", "2", ip],
+                capture_output=True, text=True, timeout=5
+            )
+            match = re.search(r"time=([\d.]+)\s*ms", result.stdout)
+            if match:
+                return float(match.group(1))
+        except Exception:
+            pass
+        return None
+
+    def get_wg_transfer(self, config_name):
+        if not config_name:
+            return None
+        code, output = self._ssh_cmd(
+            f"wg show {config_name} transfer 2>/dev/null",
+            timeout=5
+        )
+        if code != 0 or not output.strip():
+            return None
+        parts = output.strip().split()
+        if len(parts) >= 3:
+            try:
+                return int(parts[1]), int(parts[2])
+            except ValueError:
+                pass
+        return None

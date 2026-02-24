@@ -4,7 +4,7 @@ import sys
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Gtk, Adw, GLib, Gdk
+from gi.repository import Gtk, Adw, GLib, Gdk, Gio
 
 from vpn_shuttle import APP_ID, APP_NAME
 from vpn_shuttle.config import AppConfig
@@ -13,6 +13,8 @@ from vpn_shuttle.widgets.status import StatusPanel
 from vpn_shuttle.widgets.logs import LogViewer
 from vpn_shuttle.widgets.routing import RoutingEditor
 from vpn_shuttle.widgets.settings import SettingsDialog
+from vpn_shuttle.widgets.history import HistoryDialog
+from vpn_shuttle.widgets.dns_test import DnsLeakDialog
 
 CSS = """
 .connect-btn { min-width: 120px; }
@@ -75,6 +77,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._backend = VPNBackend(self._config)
         self._host_ids = []
         self._switching_host = False
+        self._tray = None
 
         self._build_ui()
 
@@ -85,6 +88,13 @@ class MainWindow(Adw.ApplicationWindow):
 
         if self._config.get("routing_mode") == "specific":
             self._routing_editor._specific_btn.set_active(True)
+
+        self._init_tray()
+
+        if self._config.get("auto_connect"):
+            GLib.idle_add(self._try_auto_connect)
+
+        self.connect("close-request", self._on_close_request)
 
     def _build_ui(self):
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -128,6 +138,19 @@ class MainWindow(Adw.ApplicationWindow):
         self._connect_btn.connect("clicked", self._on_connect_clicked)
         header.pack_end(self._connect_btn)
 
+        self._dns_btn = Gtk.Button()
+        self._dns_btn.set_icon_name("network-server-symbolic")
+        self._dns_btn.set_tooltip_text("DNS Leak Test")
+        self._dns_btn.set_sensitive(False)
+        self._dns_btn.connect("clicked", self._on_dns_test_clicked)
+        header.pack_end(self._dns_btn)
+
+        history_btn = Gtk.Button()
+        history_btn.set_icon_name("document-open-recent-symbolic")
+        history_btn.set_tooltip_text("Connection History")
+        history_btn.connect("clicked", self._on_history_clicked)
+        header.pack_end(history_btn)
+
         main_box.append(header)
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
@@ -148,6 +171,27 @@ class MainWindow(Adw.ApplicationWindow):
 
         main_box.append(content)
         self.set_content(main_box)
+
+    def _init_tray(self):
+        try:
+            from vpn_shuttle.tray import TrayIcon
+            self._tray = TrayIcon(self)
+        except Exception:
+            pass
+
+    def _try_auto_connect(self):
+        last_config = self._config.get("last_config")
+        if last_config and self._config.jump_host and not self._backend.is_connected:
+            item = self._config_dropdown.get_selected_item()
+            if item and item.get_string():
+                self._on_connect_clicked(self._connect_btn)
+        return False
+
+    def _on_close_request(self, window):
+        if self._tray and self._config.get("hide_on_close"):
+            self.set_visible(False)
+            return True
+        return False
 
     def _refresh_hosts(self):
         hosts = self._config.get_hosts()
@@ -275,11 +319,16 @@ class MainWindow(Adw.ApplicationWindow):
             self._host_dropdown.set_sensitive(False)
             self._config_dropdown.set_sensitive(False)
             self._routing_editor.set_sensitive(False)
+            self._dns_btn.set_sensitive(True)
             self._status_panel.update_status(
                 "connected",
                 config_name=config_name,
                 jump_host=self._config.jump_host_ip,
             )
+            self._status_panel.start_stats(self._backend)
+            self._send_notification("VPN Connected", f"Connected to {config_name}")
+            if self._tray:
+                self._tray.update_status(True)
         elif status == "connecting":
             self._connect_btn.set_label("Connecting...")
             self._connect_btn.set_sensitive(False)
@@ -291,12 +340,32 @@ class MainWindow(Adw.ApplicationWindow):
             self._host_dropdown.set_sensitive(True)
             self._config_dropdown.set_sensitive(True)
             self._routing_editor.set_sensitive(True)
+            self._dns_btn.set_sensitive(False)
             self._status_panel.update_status("disconnected")
+            self._status_panel.stop_stats()
+            self._send_notification("VPN Disconnected", "Connection ended")
+            if self._tray:
+                self._tray.update_status(False)
+
+    def _send_notification(self, title, body):
+        if not self._config.get("notifications"):
+            return
+        notification = Gio.Notification.new(title)
+        notification.set_body(body)
+        self.get_application().send_notification(None, notification)
 
     def _on_settings_clicked(self, button):
         dialog = SettingsDialog(
             self, self._config, self._backend, on_hosts_changed=self._refresh_hosts
         )
+        dialog.present()
+
+    def _on_history_clicked(self, button):
+        dialog = HistoryDialog(self, self._config)
+        dialog.present()
+
+    def _on_dns_test_clicked(self, button):
+        dialog = DnsLeakDialog(self)
         dialog.present()
 
 

@@ -1,6 +1,7 @@
 import json
 import uuid
 from pathlib import Path
+from datetime import datetime
 
 CONFIG_DIR = Path.home() / ".config" / "vpn-shuttle"
 CONFIG_FILE = CONFIG_DIR / "settings.json"
@@ -10,6 +11,10 @@ DEFAULTS = {
     "active_host": "",
     "last_config": "",
     "routing_mode": "all",
+    "auto_connect": False,
+    "notifications": True,
+    "hide_on_close": True,
+    "connection_history": [],
 }
 
 HOST_DEFAULTS = {
@@ -147,3 +152,40 @@ class AppConfig:
                 hosts[host_id]["saved_routes"][config_name] = routes
                 self._data["hosts"] = hosts
                 self.save()
+
+    def add_history_entry(self, config_name, host_name, host_ip, started_at, ended_at, duration_seconds, subnets, status):
+        entry = {
+            "config_name": config_name,
+            "host_name": host_name,
+            "host_ip": host_ip,
+            "started_at": started_at,
+            "ended_at": ended_at,
+            "duration_seconds": duration_seconds,
+            "subnets": subnets,
+            "status": status,
+        }
+        history = self._data.get("connection_history", [])
+        history.insert(0, entry)
+        self._data["connection_history"] = history[:50]
+        self.save()
+
+    def get_history(self):
+        return self._data.get("connection_history", [])
+
+    def clear_history(self):
+        self._data["connection_history"] = []
+        self.save()
+
+    def export_settings(self, path):
+        with open(path, "w") as f:
+            json.dump(self._data, f, indent=2)
+
+    def import_settings(self, path):
+        with open(path) as f:
+            data = json.load(f)
+        self._migrate(data)
+        for key in DEFAULTS:
+            if key not in data:
+                data[key] = DEFAULTS[key]
+        self._data = data
+        self.save()

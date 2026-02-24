@@ -1,4 +1,5 @@
 import gi
+import threading
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
@@ -13,6 +14,8 @@ class StatusPanel(Gtk.Frame):
         self.set_label_widget(None)
 
         self._uptime_timer_id = None
+        self._stats_timer_id = None
+        self._backend = None
         self._current_state_class = "status-card-disconnected"
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -42,7 +45,7 @@ class StatusPanel(Gtk.Frame):
         self._grid.set_column_spacing(16)
         self._grid.set_row_spacing(6)
 
-        labels = ["Jump Host:", "VPN Endpoint:", "Uptime:"]
+        labels = ["Jump Host:", "VPN Endpoint:", "Uptime:", "Latency:", "Transfer:"]
         self._value_labels = {}
         for i, label_text in enumerate(labels):
             label = Gtk.Label(label=label_text)
@@ -89,6 +92,8 @@ class StatusPanel(Gtk.Frame):
             self._status_label.set_label("Disconnected")
             self._stop_uptime_timer()
             self._value_labels["Uptime:"].set_label("-")
+            self._value_labels["Latency:"].set_label("-")
+            self._value_labels["Transfer:"].set_label("-")
 
         if jump_host:
             self._value_labels["Jump Host:"].set_label(jump_host)
@@ -111,3 +116,55 @@ class StatusPanel(Gtk.Frame):
         minutes, seconds = divmod(remainder, 60)
         self._value_labels["Uptime:"].set_label(f"{hours:02d}:{minutes:02d}:{seconds:02d}")
         return True
+
+    def start_stats(self, backend):
+        self._backend = backend
+        self.stop_stats()
+        self._stats_timer_id = GLib.timeout_add_seconds(5, self._poll_stats)
+        self._poll_stats()
+
+    def stop_stats(self):
+        if self._stats_timer_id:
+            GLib.source_remove(self._stats_timer_id)
+            self._stats_timer_id = None
+        self._backend = None
+
+    def _poll_stats(self):
+        if not self._backend or not self._backend.is_connected:
+            return False
+
+        backend = self._backend
+        config = backend.active_config
+
+        def fetch():
+            latency = backend.get_latency()
+            transfer = backend.get_wg_transfer(config)
+            GLib.idle_add(self._update_stats_labels, latency, transfer)
+
+        threading.Thread(target=fetch, daemon=True).start()
+        return True
+
+    def _update_stats_labels(self, latency, transfer):
+        if latency is not None:
+            self._value_labels["Latency:"].set_label(f"{latency:.1f} ms")
+        else:
+            self._value_labels["Latency:"].set_label("-")
+
+        if transfer:
+            rx, tx = transfer
+            self._value_labels["Transfer:"].set_label(
+                f"\u2193 {self._format_bytes(rx)} / \u2191 {self._format_bytes(tx)}"
+            )
+        else:
+            self._value_labels["Transfer:"].set_label("-")
+        return False
+
+    @staticmethod
+    def _format_bytes(b):
+        if b < 1024:
+            return f"{b} B"
+        elif b < 1024 * 1024:
+            return f"{b / 1024:.1f} KB"
+        elif b < 1024 * 1024 * 1024:
+            return f"{b / (1024 * 1024):.1f} MB"
+        return f"{b / (1024 * 1024 * 1024):.2f} GB"
