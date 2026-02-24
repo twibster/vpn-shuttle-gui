@@ -15,15 +15,53 @@ from vpn_shuttle.widgets.routing import RoutingEditor
 from vpn_shuttle.widgets.settings import SettingsDialog
 
 CSS = """
-.status-connected { color: #2ec27e; font-size: 24px; }
-.status-connecting { color: #e5a50a; font-size: 24px; }
-.status-disconnected { color: #c01c28; font-size: 24px; }
+.connect-btn { min-width: 120px; }
+
+.status-card {
+    border-radius: 12px;
+    padding: 16px;
+    transition: background 200ms ease;
+}
+.status-card-disconnected {
+    background: alpha(@error_color, 0.08);
+    border: 1px solid alpha(@error_color, 0.15);
+}
+.status-card-connected {
+    background: alpha(@success_color, 0.08);
+    border: 1px solid alpha(@success_color, 0.15);
+}
+.status-card-connecting {
+    background: alpha(@warning_color, 0.08);
+    border: 1px solid alpha(@warning_color, 0.15);
+}
+.status-icon-disconnected { color: @error_color; }
+.status-icon-connected { color: @success_color; }
+.status-icon-connecting { color: @warning_color; }
+.status-value { font-weight: bold; }
+
+.routing-card {
+    border-radius: 12px;
+    padding: 16px;
+    background: alpha(@card_bg_color, 0.5);
+    border: 1px solid alpha(@borders, 0.5);
+}
+.mode-toggle {
+    min-width: 100px;
+}
+
+.log-frame {
+    border-radius: 12px;
+    background: alpha(@card_bg_color, 0.5);
+    border: 1px solid alpha(@borders, 0.5);
+}
+.log-header {
+    padding: 10px 16px;
+}
 .log-view {
     font-size: 12px;
-    padding: 8px;
-    background: rgba(0,0,0,0.05);
+    padding: 8px 16px;
+    background: transparent;
 }
-.connect-btn { min-width: 120px; }
 """
 
 
@@ -46,7 +84,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._refresh_hosts()
 
         if self._config.get("routing_mode") == "specific":
-            self._routing_editor._specific_radio.set_active(True)
+            self._routing_editor._specific_btn.set_active(True)
 
     def _build_ui(self):
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -90,17 +128,17 @@ class MainWindow(Adw.ApplicationWindow):
 
         main_box.append(header)
 
-        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        content.set_margin_start(16)
+        content.set_margin_end(16)
+        content.set_margin_top(12)
+        content.set_margin_bottom(12)
 
         self._status_panel = StatusPanel()
         content.append(self._status_panel)
 
-        content.append(Gtk.Separator())
-
         self._routing_editor = RoutingEditor()
         content.append(self._routing_editor)
-
-        content.append(Gtk.Separator())
 
         self._log_viewer = LogViewer()
         self._log_viewer.set_vexpand(True)

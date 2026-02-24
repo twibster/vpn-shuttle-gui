@@ -5,30 +5,42 @@ gi.require_version("Adw", "1")
 from gi.repository import Gtk, GLib, Pango
 
 
-class StatusPanel(Gtk.Box):
+class StatusPanel(Gtk.Frame):
     def __init__(self):
-        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        self.set_margin_start(16)
-        self.set_margin_end(16)
-        self.set_margin_top(12)
-        self.set_margin_bottom(12)
+        super().__init__()
+        self.add_css_class("status-card")
+        self.add_css_class("status-card-disconnected")
+        self.set_label_widget(None)
 
         self._uptime_timer_id = None
+        self._current_state_class = "status-card-disconnected"
 
-        status_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        self._indicator = Gtk.Label(label="\u25cf")
-        self._indicator.add_css_class("status-disconnected")
-        status_row.append(self._indicator)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        box.set_margin_start(4)
+        box.set_margin_end(4)
+        box.set_margin_top(4)
+        box.set_margin_bottom(4)
+
+        status_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+
+        self._icon = Gtk.Image()
+        self._icon.set_from_icon_name("network-offline-symbolic")
+        self._icon.set_pixel_size(32)
+        self._icon.add_css_class("status-icon-disconnected")
+        self._current_icon_class = "status-icon-disconnected"
+        status_row.append(self._icon)
 
         self._status_label = Gtk.Label(label="Disconnected")
         self._status_label.set_xalign(0)
-        self._status_label.add_css_class("title-3")
+        self._status_label.set_hexpand(True)
+        self._status_label.add_css_class("title-2")
         status_row.append(self._status_label)
-        self.append(status_row)
+
+        box.append(status_row)
 
         self._grid = Gtk.Grid()
-        self._grid.set_column_spacing(12)
-        self._grid.set_row_spacing(4)
+        self._grid.set_column_spacing(16)
+        self._grid.set_row_spacing(6)
 
         labels = ["Jump Host:", "VPN Endpoint:", "Uptime:"]
         self._value_labels = {}
@@ -42,31 +54,38 @@ class StatusPanel(Gtk.Box):
             value.set_xalign(0)
             value.set_hexpand(True)
             value.set_ellipsize(Pango.EllipsizeMode.END)
+            value.add_css_class("status-value")
             self._grid.attach(value, 1, i, 1, 1)
             self._value_labels[label_text] = value
 
-        self.append(self._grid)
+        box.append(self._grid)
+        self.set_child(box)
+
+    def _set_state(self, state):
+        self.remove_css_class(self._current_state_class)
+        new_class = f"status-card-{state}"
+        self.add_css_class(new_class)
+        self._current_state_class = new_class
+
+        self._icon.remove_css_class(self._current_icon_class)
+        new_icon_class = f"status-icon-{state}"
+        self._icon.add_css_class(new_icon_class)
+        self._current_icon_class = new_icon_class
 
     def update_status(self, status: str, config_name=None, jump_host=None, endpoint=None):
         if status == "connected":
-            self._indicator.set_label("\u25cf")
-            self._indicator.remove_css_class("status-disconnected")
-            self._indicator.remove_css_class("status-connecting")
-            self._indicator.add_css_class("status-connected")
+            self._set_state("connected")
+            self._icon.set_from_icon_name("network-vpn-symbolic")
             self._status_label.set_label(f"Connected via {config_name or 'Unknown'}")
             self._start_uptime_timer()
         elif status == "connecting":
-            self._indicator.set_label("\u25cf")
-            self._indicator.remove_css_class("status-disconnected")
-            self._indicator.remove_css_class("status-connected")
-            self._indicator.add_css_class("status-connecting")
+            self._set_state("connecting")
+            self._icon.set_from_icon_name("network-vpn-acquiring-symbolic")
             self._status_label.set_label(f"Connecting to {config_name or ''}...")
             self._value_labels["Uptime:"].set_label("-")
         else:
-            self._indicator.set_label("\u25cf")
-            self._indicator.remove_css_class("status-connected")
-            self._indicator.remove_css_class("status-connecting")
-            self._indicator.add_css_class("status-disconnected")
+            self._set_state("disconnected")
+            self._icon.set_from_icon_name("network-offline-symbolic")
             self._status_label.set_label("Disconnected")
             self._stop_uptime_timer()
             self._value_labels["Uptime:"].set_label("-")
