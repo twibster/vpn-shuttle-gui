@@ -337,12 +337,15 @@ class VPNBackend:
             self._log("Starting sshuttle...")
 
             if self.config.auth_type == "password":
-                ssh_e = f"sshpass -p {self.config.password} ssh -o StrictHostKeyChecking=no"
+                ssh_e = "sshpass -e ssh -o StrictHostKeyChecking=no"
             else:
                 ssh_e = f"ssh -i {self.config.ssh_key_path} -o StrictHostKeyChecking=no"
 
-            sshuttle_cmd = [
-                "sudo", "sshuttle",
+            sshuttle_cmd = ["sudo"]
+            if self.config.auth_type == "password":
+                sshuttle_cmd += ["env", f"SSHPASS={self.config.password}"]
+            sshuttle_cmd += [
+                "sshuttle",
                 "-r", self.config.jump_host,
                 "--dns",
                 "-x", f"{self.config.jump_host_ip}/32",
