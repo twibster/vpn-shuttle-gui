@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=VPN Shuttle
+Comment=Route traffic through WireGuard VPNs via a jump host
+Exec=vpn-shuttle-gui
+Icon=vpn-shuttle
+Type=Application
+Categories=Network;Security;
+Keywords=VPN;WireGuard;sshuttle;tunnel;
+StartupWMClass=com.vpnshuttle.app
