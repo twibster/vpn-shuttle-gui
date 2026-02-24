@@ -56,10 +56,7 @@ class RoutingEditor(Gtk.Frame):
         self._ip_frame.append(scrolled)
 
         add_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        add_box.set_margin_start(12)
-        add_box.set_margin_end(8)
-        add_box.set_margin_top(6)
-        add_box.set_margin_bottom(6)
+        add_box.set_hexpand(True)
 
         self._ip_entry = Gtk.Entry()
         self._ip_entry.set_placeholder_text("e.g. 10.0.0.0/8")
