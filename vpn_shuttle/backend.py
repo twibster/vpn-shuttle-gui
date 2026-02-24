@@ -468,3 +468,36 @@ class VPNBackend:
         if code != 0:
             return False, f"Delete failed: {output}"
         return True, "Config deleted"
+
+    def get_latency(self):
+        ip = self.config.jump_host_ip
+        if not ip:
+            return None
+        try:
+            result = subprocess.run(
+                ["ping", "-c", "1", "-W", "2", ip],
+                capture_output=True, text=True, timeout=5
+            )
+            match = re.search(r"time=([\d.]+)\s*ms", result.stdout)
+            if match:
+                return float(match.group(1))
+        except Exception:
+            pass
+        return None
+
+    def get_wg_transfer(self, config_name):
+        if not config_name:
+            return None
+        code, output = self._ssh_cmd(
+            f"wg show {config_name} transfer 2>/dev/null",
+            timeout=5
+        )
+        if code != 0 or not output.strip():
+            return None
+        parts = output.strip().split()
+        if len(parts) >= 3:
+            try:
+                return int(parts[1]), int(parts[2])
+            except ValueError:
+                pass
+        return None

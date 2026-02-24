@@ -4,7 +4,7 @@ import sys
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Gtk, Adw, GLib, Gdk
+from gi.repository import Gtk, Adw, GLib, Gdk, Gio
 
 from vpn_shuttle import APP_ID, APP_NAME
 from vpn_shuttle.config import AppConfig
@@ -75,7 +75,6 @@ class MainWindow(Adw.ApplicationWindow):
         self._backend = VPNBackend(self._config)
         self._host_ids = []
         self._switching_host = False
-
         self._build_ui()
 
         self._backend.set_log_callback(self._log_viewer.append_log)
@@ -85,6 +84,8 @@ class MainWindow(Adw.ApplicationWindow):
 
         if self._config.get("routing_mode") == "specific":
             self._routing_editor._specific_btn.set_active(True)
+
+        self._pending_auto_connect = bool(self._config.get("auto_connect"))
 
     def _build_ui(self):
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -149,6 +150,12 @@ class MainWindow(Adw.ApplicationWindow):
         main_box.append(content)
         self.set_content(main_box)
 
+    def _try_auto_connect(self):
+        if self._config.jump_host and not self._backend.is_connected:
+            item = self._config_dropdown.get_selected_item()
+            if item and item.get_string():
+                self._on_connect_clicked(self._connect_btn)
+
     def _refresh_hosts(self):
         hosts = self._config.get_hosts()
         self._host_ids = list(hosts.keys())
@@ -206,6 +213,10 @@ class MainWindow(Adw.ApplicationWindow):
             routes = self._config.get_routes_for_config(last_config)
             if routes:
                 self._routing_editor.set_subnets(routes)
+
+        if self._pending_auto_connect:
+            self._pending_auto_connect = False
+            self._try_auto_connect()
 
     def _get_selected_config(self) -> str:
         item = self._config_dropdown.get_selected_item()
@@ -280,6 +291,8 @@ class MainWindow(Adw.ApplicationWindow):
                 config_name=config_name,
                 jump_host=self._config.jump_host_ip,
             )
+            self._status_panel.start_stats(self._backend)
+            self._send_notification("VPN Connected", f"Connected to {config_name}")
         elif status == "connecting":
             self._connect_btn.set_label("Connecting...")
             self._connect_btn.set_sensitive(False)
@@ -292,6 +305,15 @@ class MainWindow(Adw.ApplicationWindow):
             self._config_dropdown.set_sensitive(True)
             self._routing_editor.set_sensitive(True)
             self._status_panel.update_status("disconnected")
+            self._status_panel.stop_stats()
+            self._send_notification("VPN Disconnected", "Connection ended")
+
+    def _send_notification(self, title, body):
+        if not self._config.get("notifications"):
+            return
+        notification = Gio.Notification.new(title)
+        notification.set_body(body)
+        self.get_application().send_notification(None, notification)
 
     def _on_settings_clicked(self, button):
         dialog = SettingsDialog(

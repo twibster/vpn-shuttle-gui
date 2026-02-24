@@ -10,6 +10,8 @@ DEFAULTS = {
     "active_host": "",
     "last_config": "",
     "routing_mode": "all",
+    "auto_connect": False,
+    "notifications": True,
 }
 
 HOST_DEFAULTS = {
@@ -161,3 +163,17 @@ class AppConfig:
                 hosts[host_id]["saved_routes"][config_name] = routes
                 self._data["hosts"] = hosts
                 self.save()
+
+    def export_settings(self, path):
+        with open(path, "w") as f:
+            json.dump(self._data, f, indent=2)
+
+    def import_settings(self, path):
+        with open(path) as f:
+            data = json.load(f)
+        self._migrate(data)
+        for key in DEFAULTS:
+            if key not in data:
+                data[key] = DEFAULTS[key]
+        self._data = data
+        self.save()
