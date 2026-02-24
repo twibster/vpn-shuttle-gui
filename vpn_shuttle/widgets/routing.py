@@ -76,7 +76,7 @@ class RoutingEditor(Gtk.Frame):
         import_btn.connect("clicked", self._on_import_file)
         add_box.append(import_btn)
 
-        self._ip_listbox.append(add_box)
+        self._ip_frame.append(add_box)
         box.append(self._ip_frame)
 
         self.set_child(box)

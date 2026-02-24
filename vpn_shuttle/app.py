@@ -90,9 +90,9 @@ class MainWindow(Adw.ApplicationWindow):
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
 
         header = Adw.HeaderBar()
-        header.set_title_widget(Gtk.Label())
 
         selector_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        selector_box.set_margin_start(4)
 
         host_label = Gtk.Label(label="Host:")
         selector_box.append(host_label)
@@ -113,19 +113,20 @@ class MainWindow(Adw.ApplicationWindow):
         refresh_btn.connect("clicked", lambda b: self._refresh_hosts())
         selector_box.append(refresh_btn)
 
+        settings_btn = Gtk.Button()
+        settings_btn.set_icon_name("emblem-system-symbolic")
+        settings_btn.set_tooltip_text("Settings")
+        settings_btn.connect("clicked", self._on_settings_clicked)
+        selector_box.append(settings_btn)
+
         header.pack_start(selector_box)
 
         self._connect_btn = Gtk.Button(label="Connect")
         self._connect_btn.add_css_class("suggested-action")
         self._connect_btn.add_css_class("connect-btn")
         self._connect_btn.connect("clicked", self._on_connect_clicked)
-        header.pack_end(self._connect_btn)
 
-        settings_btn = Gtk.Button()
-        settings_btn.set_icon_name("emblem-system-symbolic")
-        settings_btn.set_tooltip_text("Settings")
-        settings_btn.connect("clicked", self._on_settings_clicked)
-        header.pack_end(settings_btn)
+        header.set_title_widget(self._connect_btn)
 
         main_box.append(header)
 
