@@ -4,7 +4,6 @@ import signal
 import os
 import re
 import time
-from datetime import datetime
 from typing import Callable, Optional
 
 VPN_MANAGE_SCRIPT = r'''#!/bin/bash
@@ -268,11 +267,6 @@ class VPNBackend:
         thread.start()
 
     def _connect_thread(self, config_name: str, subnets: list[str]):
-        started_at = datetime.now().isoformat()
-        host = self.config.get_active_host()
-        host_name = host.get("name", "Unknown")
-        host_ip = host.get("ip", "Unknown")
-
         with self._lock:
             if self._connected:
                 self._log("Already connected. Disconnecting first...")
@@ -288,10 +282,6 @@ class VPNBackend:
             if code != 0:
                 self._log(f"Failed to activate VPN: exit code {code}")
                 self._set_status("disconnected")
-                self.config.add_history_entry(
-                    config_name, host_name, host_ip, started_at,
-                    datetime.now().isoformat(), 0, subnets, "failed"
-                )
                 return
 
             self._log("")
@@ -319,10 +309,6 @@ class VPNBackend:
                 self._log(f"Failed to start sshuttle: {e}")
                 self._ssh_cmd(f"vpn-manage down {config_name}")
                 self._set_status("disconnected")
-                self.config.add_history_entry(
-                    config_name, host_name, host_ip, started_at,
-                    datetime.now().isoformat(), 0, subnets, "failed"
-                )
                 return
 
             self._connected = True
@@ -341,13 +327,6 @@ class VPNBackend:
         exit_code = self._sshuttle_proc.returncode
         self._log(f"sshuttle exited (code {exit_code})")
 
-        ended_at = datetime.now().isoformat()
-        duration = int(time.time() - (self._connect_time or time.time()))
-
-        transfer = self.get_wg_transfer(config_name)
-        rx_bytes = transfer[0] if transfer else 0
-        tx_bytes = transfer[1] if transfer else 0
-
         with self._lock:
             self._connected = False
             self._active_config = None
@@ -358,12 +337,6 @@ class VPNBackend:
         self._ssh_cmd(f"vpn-manage down {config_name}")
         self._log("Disconnected.")
         self._set_status("disconnected")
-
-        self.config.add_history_entry(
-            config_name, host_name, host_ip, started_at,
-            ended_at, duration, subnets, "completed",
-            rx_bytes=rx_bytes, tx_bytes=tx_bytes,
-        )
 
     def disconnect(self):
         thread = threading.Thread(target=self._disconnect_thread, daemon=True)

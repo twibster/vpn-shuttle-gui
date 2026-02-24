@@ -31,18 +31,26 @@ class SettingsDialog(Adw.PreferencesWindow):
         behavior_group = Adw.PreferencesGroup()
         behavior_group.set_title("Behavior")
 
-        self._auto_connect_row = Adw.SwitchRow()
+        self._auto_connect_row = Adw.ActionRow()
         self._auto_connect_row.set_title("Auto-connect on startup")
         self._auto_connect_row.set_subtitle("Reconnect to the last used VPN config automatically")
-        self._auto_connect_row.set_active(bool(self._config.get("auto_connect")))
-        self._auto_connect_row.connect("notify::active", self._on_auto_connect_toggled)
+        self._auto_connect_switch = Gtk.Switch()
+        self._auto_connect_switch.set_active(bool(self._config.get("auto_connect")))
+        self._auto_connect_switch.set_valign(Gtk.Align.CENTER)
+        self._auto_connect_switch.connect("notify::active", self._on_auto_connect_toggled)
+        self._auto_connect_row.add_suffix(self._auto_connect_switch)
+        self._auto_connect_row.set_activatable_widget(self._auto_connect_switch)
         behavior_group.add(self._auto_connect_row)
 
-        self._notifications_row = Adw.SwitchRow()
+        self._notifications_row = Adw.ActionRow()
         self._notifications_row.set_title("Desktop notifications")
         self._notifications_row.set_subtitle("Show notifications on connect/disconnect")
-        self._notifications_row.set_active(bool(self._config.get("notifications")))
-        self._notifications_row.connect("notify::active", self._on_notifications_toggled)
+        self._notifications_switch = Gtk.Switch()
+        self._notifications_switch.set_active(bool(self._config.get("notifications")))
+        self._notifications_switch.set_valign(Gtk.Align.CENTER)
+        self._notifications_switch.connect("notify::active", self._on_notifications_toggled)
+        self._notifications_row.add_suffix(self._notifications_switch)
+        self._notifications_row.set_activatable_widget(self._notifications_switch)
         behavior_group.add(self._notifications_row)
 
         page.add(behavior_group)
@@ -95,11 +103,11 @@ class SettingsDialog(Adw.PreferencesWindow):
 
         self._populate_hosts()
 
-    def _on_auto_connect_toggled(self, row, param):
-        self._config.set("auto_connect", row.get_active())
+    def _on_auto_connect_toggled(self, switch, param):
+        self._config.set("auto_connect", switch.get_active())
 
-    def _on_notifications_toggled(self, row, param):
-        self._config.set("notifications", row.get_active())
+    def _on_notifications_toggled(self, switch, param):
+        self._config.set("notifications", switch.get_active())
 
     def _on_export(self, button):
         dialog = Gtk.FileDialog()
@@ -146,8 +154,8 @@ class SettingsDialog(Adw.PreferencesWindow):
             if file:
                 self._config.import_settings(file.get_path())
                 self._refresh()
-                self._auto_connect_row.set_active(bool(self._config.get("auto_connect")))
-                self._notifications_row.set_active(bool(self._config.get("notifications")))
+                self._auto_connect_switch.set_active(bool(self._config.get("auto_connect")))
+                self._notifications_switch.set_active(bool(self._config.get("notifications")))
         except Exception:
             pass
 

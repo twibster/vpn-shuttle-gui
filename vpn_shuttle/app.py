@@ -13,7 +13,6 @@ from vpn_shuttle.widgets.status import StatusPanel
 from vpn_shuttle.widgets.logs import LogViewer
 from vpn_shuttle.widgets.routing import RoutingEditor
 from vpn_shuttle.widgets.settings import SettingsDialog
-from vpn_shuttle.widgets.history import HistoryDialog
 
 CSS = """
 .connect-btn { min-width: 120px; }
@@ -130,12 +129,6 @@ class MainWindow(Adw.ApplicationWindow):
         self._connect_btn.add_css_class("connect-btn")
         self._connect_btn.connect("clicked", self._on_connect_clicked)
         header.pack_end(self._connect_btn)
-
-        history_btn = Gtk.Button()
-        history_btn.set_icon_name("document-open-recent-symbolic")
-        history_btn.set_tooltip_text("Connection History")
-        history_btn.connect("clicked", self._on_history_clicked)
-        header.pack_end(history_btn)
 
         main_box.append(header)
 
@@ -325,10 +318,6 @@ class MainWindow(Adw.ApplicationWindow):
         dialog = SettingsDialog(
             self, self._config, self._backend, on_hosts_changed=self._refresh_hosts
         )
-        dialog.present()
-
-    def _on_history_clicked(self, button):
-        dialog = HistoryDialog(self, self._config)
         dialog.present()
 
 
