@@ -56,6 +56,11 @@ class RoutingEditor(Gtk.Frame):
         self._ip_frame.append(scrolled)
 
         add_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        add_box.set_margin_start(12)
+        add_box.set_margin_end(8)
+        add_box.set_margin_top(6)
+        add_box.set_margin_bottom(6)
+
         self._ip_entry = Gtk.Entry()
         self._ip_entry.set_placeholder_text("e.g. 10.0.0.0/8")
         self._ip_entry.set_hexpand(True)
@@ -71,7 +76,7 @@ class RoutingEditor(Gtk.Frame):
         import_btn.connect("clicked", self._on_import_file)
         add_box.append(import_btn)
 
-        self._ip_frame.append(add_box)
+        self._ip_listbox.append(add_box)
         box.append(self._ip_frame)
 
         self.set_child(box)

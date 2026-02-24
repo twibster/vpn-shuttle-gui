@@ -90,6 +90,7 @@ class MainWindow(Adw.ApplicationWindow):
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
 
         header = Adw.HeaderBar()
+        header.set_title_widget(Gtk.Label())
 
         selector_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
 
