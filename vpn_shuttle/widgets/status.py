@@ -27,7 +27,7 @@ class StatusPanel(Gtk.Frame):
         status_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
 
         self._icon = Gtk.Image()
-        self._icon.set_from_icon_name("network-offline-symbolic")
+        self._icon.set_from_icon_name("network-wired-disconnected-symbolic")
         self._icon.set_pixel_size(32)
         self._icon.add_css_class("status-icon-disconnected")
         self._current_icon_class = "status-icon-disconnected"
@@ -88,7 +88,7 @@ class StatusPanel(Gtk.Frame):
             self._value_labels["Uptime:"].set_label("-")
         else:
             self._set_state("disconnected")
-            self._icon.set_from_icon_name("network-offline-symbolic")
+            self._icon.set_from_icon_name("network-wired-disconnected-symbolic")
             self._status_label.set_label("Disconnected")
             self._stop_uptime_timer()
             self._value_labels["Uptime:"].set_label("-")

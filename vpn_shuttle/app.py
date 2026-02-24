@@ -34,7 +34,7 @@ CSS = """
     background: alpha(@warning_color, 0.08);
     border: 1px solid alpha(@warning_color, 0.15);
 }
-.status-icon-disconnected { color: @error_color; }
+.status-icon-disconnected { color: #ff6b6b; }
 .status-icon-connected { color: @success_color; }
 .status-icon-connecting { color: @warning_color; }
 .status-value { font-weight: bold; }
@@ -149,6 +149,21 @@ class MainWindow(Adw.ApplicationWindow):
 
         main_box.append(content)
         self.set_content(main_box)
+
+        key_ctrl = Gtk.EventControllerKey()
+        key_ctrl.connect("key-pressed", self._on_key_pressed)
+        self.add_controller(key_ctrl)
+
+    def _on_key_pressed(self, ctrl, keyval, keycode, state):
+        if not (state & Gdk.ModifierType.CONTROL_MASK):
+            return False
+        if keyval == Gdk.KEY_d and not self._backend.is_connected and self._connect_btn.get_sensitive():
+            self._on_connect_clicked(self._connect_btn)
+            return True
+        if keyval == Gdk.KEY_c and self._backend.is_connected and self._connect_btn.get_sensitive():
+            self._on_connect_clicked(self._connect_btn)
+            return True
+        return False
 
     def _try_auto_connect(self):
         if self._config.jump_host and not self._backend.is_connected:
