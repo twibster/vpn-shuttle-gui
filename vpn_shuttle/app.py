@@ -76,8 +76,6 @@ class MainWindow(Adw.ApplicationWindow):
         self._backend = VPNBackend(self._config)
         self._host_ids = []
         self._switching_host = False
-        self._tray = None
-
         self._build_ui()
 
         self._backend.set_log_callback(self._log_viewer.append_log)
@@ -88,12 +86,8 @@ class MainWindow(Adw.ApplicationWindow):
         if self._config.get("routing_mode") == "specific":
             self._routing_editor._specific_btn.set_active(True)
 
-        self._init_tray()
-
         if self._config.get("auto_connect"):
             GLib.idle_add(self._try_auto_connect)
-
-        self.connect("close-request", self._on_close_request)
 
     def _build_ui(self):
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -164,25 +158,12 @@ class MainWindow(Adw.ApplicationWindow):
         main_box.append(content)
         self.set_content(main_box)
 
-    def _init_tray(self):
-        try:
-            from vpn_shuttle.tray import TrayIcon
-            self._tray = TrayIcon(self)
-        except Exception:
-            pass
-
     def _try_auto_connect(self):
         last_config = self._config.get("last_config")
         if last_config and self._config.jump_host and not self._backend.is_connected:
             item = self._config_dropdown.get_selected_item()
             if item and item.get_string():
                 self._on_connect_clicked(self._connect_btn)
-        return False
-
-    def _on_close_request(self, window):
-        if self._tray and self._config.get("hide_on_close"):
-            self.set_visible(False)
-            return True
         return False
 
     def _refresh_hosts(self):
@@ -318,8 +299,6 @@ class MainWindow(Adw.ApplicationWindow):
             )
             self._status_panel.start_stats(self._backend)
             self._send_notification("VPN Connected", f"Connected to {config_name}")
-            if self._tray:
-                self._tray.update_status(True)
         elif status == "connecting":
             self._connect_btn.set_label("Connecting...")
             self._connect_btn.set_sensitive(False)
@@ -334,8 +313,6 @@ class MainWindow(Adw.ApplicationWindow):
             self._status_panel.update_status("disconnected")
             self._status_panel.stop_stats()
             self._send_notification("VPN Disconnected", "Connection ended")
-            if self._tray:
-                self._tray.update_status(False)
 
     def _send_notification(self, title, body):
         if not self._config.get("notifications"):

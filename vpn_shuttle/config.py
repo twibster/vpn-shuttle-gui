@@ -13,7 +13,6 @@ DEFAULTS = {
     "routing_mode": "all",
     "auto_connect": False,
     "notifications": True,
-    "hide_on_close": True,
     "connection_history": [],
 }
 

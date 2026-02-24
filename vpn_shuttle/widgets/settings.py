@@ -45,13 +45,6 @@ class SettingsDialog(Adw.PreferencesWindow):
         self._notifications_row.connect("notify::active", self._on_notifications_toggled)
         behavior_group.add(self._notifications_row)
 
-        self._hide_on_close_row = Adw.SwitchRow()
-        self._hide_on_close_row.set_title("Minimize to tray on close")
-        self._hide_on_close_row.set_subtitle("Hide window instead of quitting when closed")
-        self._hide_on_close_row.set_active(bool(self._config.get("hide_on_close")))
-        self._hide_on_close_row.connect("notify::active", self._on_hide_on_close_toggled)
-        behavior_group.add(self._hide_on_close_row)
-
         page.add(behavior_group)
 
         backup_group = Adw.PreferencesGroup()
@@ -108,9 +101,6 @@ class SettingsDialog(Adw.PreferencesWindow):
     def _on_notifications_toggled(self, row, param):
         self._config.set("notifications", row.get_active())
 
-    def _on_hide_on_close_toggled(self, row, param):
-        self._config.set("hide_on_close", row.get_active())
-
     def _on_export(self, button):
         dialog = Gtk.FileDialog()
         dialog.set_initial_name("vpn-shuttle-settings.json")
@@ -158,7 +148,6 @@ class SettingsDialog(Adw.PreferencesWindow):
                 self._refresh()
                 self._auto_connect_row.set_active(bool(self._config.get("auto_connect")))
                 self._notifications_row.set_active(bool(self._config.get("notifications")))
-                self._hide_on_close_row.set_active(bool(self._config.get("hide_on_close")))
         except Exception:
             pass
 
