@@ -69,6 +69,7 @@ class MainWindow(Adw.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app)
         self.set_title(APP_NAME)
+        self.set_icon_name(APP_ID)
         self.set_default_size(700, 700)
 
         self._config = AppConfig()
@@ -342,6 +343,7 @@ class VPNShuttleApp(Adw.Application):
         super().__init__(application_id=APP_ID)
 
     def do_activate(self):
+        Gtk.Window.set_default_icon_name(APP_ID)
         display = Gdk.Display.get_default()
         css_provider = Gtk.CssProvider()
         css_provider.load_from_data(CSS, -1)
