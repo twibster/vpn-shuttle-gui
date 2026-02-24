@@ -16,7 +16,9 @@ HOST_DEFAULTS = {
     "name": "",
     "ip": "",
     "user": "root",
+    "auth_type": "key",
     "ssh_key_path": str(Path.home() / ".ssh" / "id_rsa"),
+    "password": "",
     "setup_complete": False,
     "saved_routes": {},
 }
@@ -82,14 +84,16 @@ class AppConfig:
     def set_active_host(self, host_id: str):
         self.set("active_host", host_id)
 
-    def add_host(self, name, ip, user, ssh_key_path) -> str:
+    def add_host(self, name, ip, user, auth_type="key", ssh_key_path="", password="") -> str:
         host_id = str(uuid.uuid4())[:8]
         hosts = self._data.get("hosts", {})
         hosts[host_id] = {
             "name": name,
             "ip": ip,
             "user": user,
+            "auth_type": auth_type,
             "ssh_key_path": ssh_key_path,
+            "password": password,
             "setup_complete": False,
             "saved_routes": {},
         }
@@ -127,9 +131,19 @@ class AppConfig:
         return host.get("ip", "") if host else ""
 
     @property
+    def auth_type(self):
+        host = self.get_active_host()
+        return host.get("auth_type", "key") if host else "key"
+
+    @property
     def ssh_key_path(self):
         host = self.get_active_host()
         return host.get("ssh_key_path", HOST_DEFAULTS["ssh_key_path"]) if host else HOST_DEFAULTS["ssh_key_path"]
+
+    @property
+    def password(self):
+        host = self.get_active_host()
+        return host.get("password", "") if host else ""
 
     def get_routes_for_config(self, config_name):
         host = self.get_active_host()

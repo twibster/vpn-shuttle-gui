@@ -40,16 +40,37 @@ class AddHostDialog(Adw.MessageDialog):
         self._user_entry.set_title("SSH User")
         self._user_entry.set_text(host.get("user", "root"))
 
-        self._key_entry = Adw.EntryRow()
-        self._key_entry.set_title("SSH Key Path")
-        self._key_entry.set_text(host.get("ssh_key_path", str(os.path.expanduser("~/.ssh/id_rsa"))))
-
         group = Adw.PreferencesGroup()
         group.add(self._name_entry)
         group.add(self._ip_entry)
         group.add(self._user_entry)
+
+        auth_type = host.get("auth_type", "key")
+        auth_model = Gtk.StringList()
+        auth_model.append("SSH Key")
+        auth_model.append("Password")
+        self._auth_dropdown = Gtk.DropDown(model=auth_model)
+        self._auth_dropdown.set_selected(0 if auth_type == "key" else 1)
+        self._auth_dropdown.connect("notify::selected", self._on_auth_type_changed)
+
+        auth_row = Adw.ActionRow()
+        auth_row.set_title("Auth Method")
+        auth_row.add_suffix(self._auth_dropdown)
+        group.add(auth_row)
+
+        self._key_entry = Adw.EntryRow()
+        self._key_entry.set_title("SSH Key Path")
+        self._key_entry.set_text(host.get("ssh_key_path", str(os.path.expanduser("~/.ssh/id_rsa"))))
+
+        self._password_entry = Adw.PasswordEntryRow()
+        self._password_entry.set_title("Password")
+        self._password_entry.set_text(host.get("password", ""))
+
         group.add(self._key_entry)
+        group.add(self._password_entry)
         content.append(group)
+
+        self._update_auth_visibility()
 
         self._test_label = Gtk.Label(label="")
         self._test_label.set_wrap(True)
@@ -72,19 +93,40 @@ class AddHostDialog(Adw.MessageDialog):
 
         self.connect("response", self._on_response)
 
+    def _get_auth_type(self):
+        return "key" if self._auth_dropdown.get_selected() == 0 else "password"
+
+    def _on_auth_type_changed(self, dropdown, param):
+        self._update_auth_visibility()
+
+    def _update_auth_visibility(self):
+        is_key = self._get_auth_type() == "key"
+        self._key_entry.set_visible(is_key)
+        self._password_entry.set_visible(not is_key)
+
     def _on_test(self, button):
         ip = self._ip_entry.get_text().strip()
         user = self._user_entry.get_text().strip()
+        auth_type = self._get_auth_type()
         key = self._key_entry.get_text().strip()
+        password = self._password_entry.get_text().strip()
 
-        if not ip or not user or not key:
+        if not ip or not user:
             self._test_label.set_label("Fill in all fields first")
+            return
+        if auth_type == "key" and not key:
+            self._test_label.set_label("SSH key path is required")
+            return
+        if auth_type == "password" and not password:
+            self._test_label.set_label("Password is required")
             return
 
         self._test_label.set_label("Testing...")
 
         def test():
-            ok, msg = self._backend.test_host_connection(ip, user, key)
+            ok, msg = self._backend.test_host_connection(
+                ip, user, key, auth_type=auth_type, password=password
+            )
             GLib.idle_add(self._test_label.set_label, msg)
 
         threading.Thread(target=test, daemon=True).start()
@@ -94,15 +136,23 @@ class AddHostDialog(Adw.MessageDialog):
             name = self._name_entry.get_text().strip()
             ip = self._ip_entry.get_text().strip()
             user = self._user_entry.get_text().strip()
+            auth_type = self._get_auth_type()
             key = self._key_entry.get_text().strip()
+            password = self._password_entry.get_text().strip()
 
             if not name or not ip:
                 return
 
             if self._edit_host_id:
-                self._config.update_host(self._edit_host_id, name=name, ip=ip, user=user, ssh_key_path=key)
+                self._config.update_host(
+                    self._edit_host_id, name=name, ip=ip, user=user,
+                    auth_type=auth_type, ssh_key_path=key, password=password
+                )
             else:
-                self._config.add_host(name, ip, user, key)
+                self._config.add_host(
+                    name, ip, user, auth_type=auth_type,
+                    ssh_key_path=key, password=password
+                )
 
             if self._on_done:
                 self._on_done()
