@@ -1,0 +1,23 @@
+resources/vpn-shuttle.svg
+  e1e646934f6bf213 4-5,7-17,20-22,24-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.5",
+  "base_commit_sha": "94142e7a0ea562cc57c363b1719a3ff36dfc7abe",
+  "prompts": {
+    "e1e646934f6bf213": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6ba3ae24-36ab-4f4d-8ba1-b361769f1cbf",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Omar Omran <omar.pycc@gmail.com>",
+      "messages": [],
+      "total_additions": 18,
+      "total_deletions": 10,
+      "accepted_lines": 18,
+      "overriden_lines": 0
+    }
+  }
+}
