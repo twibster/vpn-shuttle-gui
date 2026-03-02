@@ -84,11 +84,6 @@ class MainWindow(Adw.ApplicationWindow):
 
         self._refresh_hosts()
 
-        self._routing_editor._suppress_changed = True
-        if self._config.get("routing_mode") != "all":
-            self._routing_editor._specific_btn.set_active(True)
-        self._routing_editor._suppress_changed = False
-
         self._pending_auto_connect = bool(self._config.get("auto_connect"))
 
     def _build_ui(self):
@@ -262,6 +257,13 @@ class MainWindow(Adw.ApplicationWindow):
             routes = self._config.get_routes_for_config(last_config)
             if routes:
                 self._routing_editor.set_subnets(routes)
+
+        self._routing_editor._suppress_changed = True
+        if self._config.get("routing_mode") == "all":
+            self._routing_editor._all_btn.set_active(True)
+        else:
+            self._routing_editor._specific_btn.set_active(True)
+        self._routing_editor._suppress_changed = False
 
         if self._pending_auto_connect:
             self._pending_auto_connect = False

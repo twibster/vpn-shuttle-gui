@@ -194,10 +194,7 @@ class RoutingEditor(Gtk.Frame):
                 break
             self._ip_listbox.remove(row)
 
-        if not subnets or subnets == ["0/0"]:
-            self._all_btn.set_active(True)
-        else:
-            self._specific_btn.set_active(True)
+        if subnets and subnets != ["0/0"]:
             for s in subnets:
                 self._add_ip_row(s)
         self._suppress_changed = False
