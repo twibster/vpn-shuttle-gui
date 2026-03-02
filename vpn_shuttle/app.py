@@ -69,21 +69,20 @@ class MainWindow(Adw.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app)
         self.set_title(APP_NAME)
+        self.set_icon_name(APP_ID)
         self.set_default_size(700, 700)
 
         self._config = AppConfig()
         self._backend = VPNBackend(self._config)
         self._host_ids = []
         self._switching_host = False
+        self._pending_reconnect = False
         self._build_ui()
 
         self._backend.set_log_callback(self._log_viewer.append_log)
         self._backend.set_status_callback(self._on_status_changed)
 
         self._refresh_hosts()
-
-        if self._config.get("routing_mode") == "specific":
-            self._routing_editor._specific_btn.set_active(True)
 
         self._pending_auto_connect = bool(self._config.get("auto_connect"))
 
@@ -115,6 +114,7 @@ class MainWindow(Adw.ApplicationWindow):
         vpn_box.append(vpn_label)
         self._config_dropdown = Gtk.DropDown()
         self._config_dropdown.set_size_request(150, -1)
+        self._config_dropdown.connect("notify::selected", self._on_config_changed)
         vpn_box.append(self._config_dropdown)
         refresh_btn = Gtk.Button()
         refresh_btn.set_icon_name("view-refresh-symbolic")
@@ -141,6 +141,7 @@ class MainWindow(Adw.ApplicationWindow):
         content.append(self._status_panel)
 
         self._routing_editor = RoutingEditor()
+        self._routing_editor.set_on_changed(self._on_routing_changed)
         content.append(self._routing_editor)
 
         self._log_viewer = LogViewer()
@@ -164,6 +165,28 @@ class MainWindow(Adw.ApplicationWindow):
             self._on_connect_clicked(self._connect_btn)
             return True
         return False
+
+    def _reconnect(self):
+        self._pending_reconnect = True
+        self._connect_btn.set_label("Reconnecting...")
+        self._connect_btn.set_sensitive(False)
+        self._backend.disconnect()
+
+    def _on_config_changed(self, dropdown, param):
+        if self._switching_host:
+            return
+        if dropdown.get_selected() == Gtk.INVALID_LIST_POSITION:
+            return
+        if self._backend.is_connected:
+            self._reconnect()
+
+    def _on_routing_changed(self):
+        self._config.set(
+            "routing_mode",
+            "all" if self._routing_editor.is_all_traffic else "specific",
+        )
+        if self._backend.is_connected:
+            self._reconnect()
 
     def _try_auto_connect(self):
         if self._config.jump_host and not self._backend.is_connected:
@@ -198,8 +221,14 @@ class MainWindow(Adw.ApplicationWindow):
             return
         idx = dropdown.get_selected()
         if idx < len(self._host_ids):
+            was_connected = self._backend.is_connected
             host_id = self._host_ids[idx]
             self._config.set_active_host(host_id)
+            if was_connected:
+                self._pending_reconnect = True
+                self._connect_btn.set_label("Reconnecting...")
+                self._connect_btn.set_sensitive(False)
+                self._backend.disconnect()
             self._refresh_configs()
 
     def _refresh_configs(self):
@@ -228,6 +257,13 @@ class MainWindow(Adw.ApplicationWindow):
             routes = self._config.get_routes_for_config(last_config)
             if routes:
                 self._routing_editor.set_subnets(routes)
+
+        self._routing_editor._suppress_changed = True
+        if self._config.get("routing_mode") == "all":
+            self._routing_editor._all_btn.set_active(True)
+        else:
+            self._routing_editor._specific_btn.set_active(True)
+        self._routing_editor._suppress_changed = False
 
         if self._pending_auto_connect:
             self._pending_auto_connect = False
@@ -269,7 +305,6 @@ class MainWindow(Adw.ApplicationWindow):
 
             self._connect_btn.set_sensitive(False)
             self._connect_btn.set_label("Connecting...")
-            self._host_dropdown.set_sensitive(False)
             self._status_panel.update_status(
                 "connecting",
                 config_name=config_name,
@@ -298,9 +333,6 @@ class MainWindow(Adw.ApplicationWindow):
             self._connect_btn.remove_css_class("suggested-action")
             self._connect_btn.add_css_class("destructive-action")
             self._connect_btn.set_sensitive(True)
-            self._host_dropdown.set_sensitive(False)
-            self._config_dropdown.set_sensitive(False)
-            self._routing_editor.set_sensitive(False)
             self._status_panel.update_status(
                 "connected",
                 config_name=config_name,
@@ -312,15 +344,16 @@ class MainWindow(Adw.ApplicationWindow):
             self._connect_btn.set_label("Connecting...")
             self._connect_btn.set_sensitive(False)
         else:
+            self._status_panel.update_status("disconnected")
+            self._status_panel.stop_stats()
+            if self._pending_reconnect:
+                self._pending_reconnect = False
+                self._on_connect_clicked(self._connect_btn)
+                return
             self._connect_btn.set_label("Connect")
             self._connect_btn.remove_css_class("destructive-action")
             self._connect_btn.add_css_class("suggested-action")
             self._connect_btn.set_sensitive(True)
-            self._host_dropdown.set_sensitive(True)
-            self._config_dropdown.set_sensitive(True)
-            self._routing_editor.set_sensitive(True)
-            self._status_panel.update_status("disconnected")
-            self._status_panel.stop_stats()
             self._send_notification("VPN Disconnected", "Connection ended")
 
     def _send_notification(self, title, body):
@@ -342,6 +375,7 @@ class VPNShuttleApp(Adw.Application):
         super().__init__(application_id=APP_ID)
 
     def do_activate(self):
+        Gtk.Window.set_default_icon_name(APP_ID)
         display = Gdk.Display.get_default()
         css_provider = Gtk.CssProvider()
         css_provider.load_from_data(CSS, -1)
