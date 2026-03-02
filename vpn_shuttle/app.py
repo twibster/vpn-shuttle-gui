@@ -84,8 +84,10 @@ class MainWindow(Adw.ApplicationWindow):
 
         self._refresh_hosts()
 
+        self._routing_editor._suppress_changed = True
         if self._config.get("routing_mode") != "all":
             self._routing_editor._specific_btn.set_active(True)
+        self._routing_editor._suppress_changed = False
 
         self._pending_auto_connect = bool(self._config.get("auto_connect"))
 
