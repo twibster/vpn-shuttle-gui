@@ -9,7 +9,7 @@ DEFAULTS = {
     "hosts": {},
     "active_host": "",
     "last_config": "",
-    "routing_mode": "all",
+    "routing_mode": "specific",
     "auto_connect": False,
     "notifications": True,
 }

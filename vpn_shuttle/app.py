@@ -84,7 +84,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         self._refresh_hosts()
 
-        if self._config.get("routing_mode") == "specific":
+        if self._config.get("routing_mode") != "all":
             self._routing_editor._specific_btn.set_active(True)
 
         self._pending_auto_connect = bool(self._config.get("auto_connect"))
@@ -184,6 +184,10 @@ class MainWindow(Adw.ApplicationWindow):
             self._reconnect()
 
     def _on_routing_changed(self):
+        self._config.set(
+            "routing_mode",
+            "all" if self._routing_editor.is_all_traffic else "specific",
+        )
         if self._backend.is_connected:
             self._reconnect()
 
