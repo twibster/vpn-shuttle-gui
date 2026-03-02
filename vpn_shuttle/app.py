@@ -76,6 +76,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._backend = VPNBackend(self._config)
         self._host_ids = []
         self._switching_host = False
+        self._pending_reconnect = False
         self._build_ui()
 
         self._backend.set_log_callback(self._log_viewer.append_log)
@@ -116,6 +117,7 @@ class MainWindow(Adw.ApplicationWindow):
         vpn_box.append(vpn_label)
         self._config_dropdown = Gtk.DropDown()
         self._config_dropdown.set_size_request(150, -1)
+        self._config_dropdown.connect("notify::selected", self._on_config_changed)
         vpn_box.append(self._config_dropdown)
         refresh_btn = Gtk.Button()
         refresh_btn.set_icon_name("view-refresh-symbolic")
@@ -142,6 +144,7 @@ class MainWindow(Adw.ApplicationWindow):
         content.append(self._status_panel)
 
         self._routing_editor = RoutingEditor()
+        self._routing_editor.set_on_changed(self._on_routing_changed)
         content.append(self._routing_editor)
 
         self._log_viewer = LogViewer()
@@ -165,6 +168,24 @@ class MainWindow(Adw.ApplicationWindow):
             self._on_connect_clicked(self._connect_btn)
             return True
         return False
+
+    def _reconnect(self):
+        self._pending_reconnect = True
+        self._connect_btn.set_label("Reconnecting...")
+        self._connect_btn.set_sensitive(False)
+        self._backend.disconnect()
+
+    def _on_config_changed(self, dropdown, param):
+        if self._switching_host:
+            return
+        if dropdown.get_selected() == Gtk.INVALID_LIST_POSITION:
+            return
+        if self._backend.is_connected:
+            self._reconnect()
+
+    def _on_routing_changed(self):
+        if self._backend.is_connected:
+            self._reconnect()
 
     def _try_auto_connect(self):
         if self._config.jump_host and not self._backend.is_connected:
@@ -199,8 +220,14 @@ class MainWindow(Adw.ApplicationWindow):
             return
         idx = dropdown.get_selected()
         if idx < len(self._host_ids):
+            was_connected = self._backend.is_connected
             host_id = self._host_ids[idx]
             self._config.set_active_host(host_id)
+            if was_connected:
+                self._pending_reconnect = True
+                self._connect_btn.set_label("Reconnecting...")
+                self._connect_btn.set_sensitive(False)
+                self._backend.disconnect()
             self._refresh_configs()
 
     def _refresh_configs(self):
@@ -270,7 +297,6 @@ class MainWindow(Adw.ApplicationWindow):
 
             self._connect_btn.set_sensitive(False)
             self._connect_btn.set_label("Connecting...")
-            self._host_dropdown.set_sensitive(False)
             self._status_panel.update_status(
                 "connecting",
                 config_name=config_name,
@@ -299,9 +325,6 @@ class MainWindow(Adw.ApplicationWindow):
             self._connect_btn.remove_css_class("suggested-action")
             self._connect_btn.add_css_class("destructive-action")
             self._connect_btn.set_sensitive(True)
-            self._host_dropdown.set_sensitive(False)
-            self._config_dropdown.set_sensitive(False)
-            self._routing_editor.set_sensitive(False)
             self._status_panel.update_status(
                 "connected",
                 config_name=config_name,
@@ -313,15 +336,16 @@ class MainWindow(Adw.ApplicationWindow):
             self._connect_btn.set_label("Connecting...")
             self._connect_btn.set_sensitive(False)
         else:
+            self._status_panel.update_status("disconnected")
+            self._status_panel.stop_stats()
+            if self._pending_reconnect:
+                self._pending_reconnect = False
+                self._on_connect_clicked(self._connect_btn)
+                return
             self._connect_btn.set_label("Connect")
             self._connect_btn.remove_css_class("destructive-action")
             self._connect_btn.add_css_class("suggested-action")
             self._connect_btn.set_sensitive(True)
-            self._host_dropdown.set_sensitive(True)
-            self._config_dropdown.set_sensitive(True)
-            self._routing_editor.set_sensitive(True)
-            self._status_panel.update_status("disconnected")
-            self._status_panel.stop_stats()
             self._send_notification("VPN Disconnected", "Connection ended")
 
     def _send_notification(self, title, body):

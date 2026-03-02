@@ -10,6 +10,8 @@ class RoutingEditor(Gtk.Frame):
         super().__init__()
         self.add_css_class("routing-card")
         self.set_label_widget(None)
+        self._on_changed_cb = None
+        self._suppress_changed = False
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         box.set_margin_start(4)
@@ -83,11 +85,13 @@ class RoutingEditor(Gtk.Frame):
         if button.get_active():
             self._specific_btn.set_active(False)
             self._ip_frame.set_visible(False)
+            self._notify_changed()
 
     def _on_specific_toggled(self, button):
         if button.get_active():
             self._all_btn.set_active(False)
             self._ip_frame.set_visible(True)
+            self._notify_changed()
         elif not self._all_btn.get_active():
             self._all_btn.set_active(True)
 
@@ -134,10 +138,12 @@ class RoutingEditor(Gtk.Frame):
 
         self._ip_listbox.append(row_box)
         self._ip_entry.remove_css_class("error")
+        self._notify_changed()
 
     def _on_remove_ip(self, button, row_box):
         row = row_box.get_parent()
         self._ip_listbox.remove(row)
+        self._notify_changed()
 
     def _on_import_file(self, button):
         dialog = Gtk.FileDialog()
@@ -163,6 +169,7 @@ class RoutingEditor(Gtk.Frame):
                         line = line.split("#")[0].strip()
                         if line and self._validate_ip(line):
                             self._add_ip_row(line)
+                self._notify_changed()
         except Exception:
             pass
 
@@ -180,6 +187,7 @@ class RoutingEditor(Gtk.Frame):
         return subnets if subnets else ["0/0"]
 
     def set_subnets(self, subnets: list[str]):
+        self._suppress_changed = True
         while True:
             row = self._ip_listbox.get_row_at_index(0)
             if row is None:
@@ -192,7 +200,15 @@ class RoutingEditor(Gtk.Frame):
             self._specific_btn.set_active(True)
             for s in subnets:
                 self._add_ip_row(s)
+        self._suppress_changed = False
 
     @property
     def is_all_traffic(self):
         return self._all_btn.get_active()
+
+    def set_on_changed(self, callback):
+        self._on_changed_cb = callback
+
+    def _notify_changed(self):
+        if self._on_changed_cb and not self._suppress_changed:
+            self._on_changed_cb()
